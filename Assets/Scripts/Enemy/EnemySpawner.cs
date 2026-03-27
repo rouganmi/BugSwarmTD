@@ -2,12 +2,14 @@ using UnityEngine;
 
 public class EnemySpawner : MonoBehaviour
 {
+    [Header("Pool Key")]
+    public string normalEnemyKey = "Enemy_Basic";
+    public string fastEnemyKey = "Enemy_Fast";
+    public string tankEnemyKey = "Enemy_Tank";
+
     [Header("References")]
-    public GameObject normalEnemyPrefab;
-    public GameObject fastEnemyPrefab;
-    public GameObject tankEnemyPrefab;
     public Transform spawnPoint;
-    public Transform targetBase;
+    public Transform[] pathPoints;
 
     [Header("Wave Settings")]
     public float spawnInterval = 1f;
@@ -15,10 +17,12 @@ public class EnemySpawner : MonoBehaviour
     public int baseEnemyCount = 5;
     public int enemyIncreasePerWave = 3;
 
+    [Header("HUD + auto next wave")]
+    [Tooltip("Countdown shown while a wave is active. When it hits 0, the next wave starts (previous enemies may remain).")]
+    public float waveDisplayCountdownSeconds = 25f;
+
     [Header("Scaling Settings")]
-    public float baseHealth = 10f;
     public float healthIncreasePerWave = 2f;
-    public float baseSpeed = 3f;
     public float speedIncreasePerWave = 0.2f;
 
     private int currentWave = 0;
@@ -27,6 +31,7 @@ public class EnemySpawner : MonoBehaviour
 
     private float spawnTimer = 0f;
     private float waveTimer = 0f;
+    private float waveDisplayCountdownRemaining = 0f;
 
     private bool isSpawningWave = false;
     private bool isWaitingForNextWave = true;
@@ -46,8 +51,21 @@ public class EnemySpawner : MonoBehaviour
             {
                 StartWave();
             }
-
             return;
+        }
+
+        if (waveDisplayCountdownSeconds > 0.001f)
+        {
+            waveDisplayCountdownRemaining -= Time.deltaTime;
+            if (waveDisplayCountdownRemaining <= 0f)
+            {
+                waveDisplayCountdownRemaining = 0f;
+                StartWave();
+            }
+        }
+        else
+        {
+            waveDisplayCountdownRemaining = 0f;
         }
 
         if (isSpawningWave)
@@ -84,6 +102,11 @@ public class EnemySpawner : MonoBehaviour
         isSpawningWave = true;
         isWaitingForNextWave = false;
 
+        waveDisplayCountdownRemaining = Mathf.Max(0f, waveDisplayCountdownSeconds);
+
+        WaveManager.NotifyWaveStarted(currentWave);
+
+        GameEvents.OnWaveChanged?.Invoke(currentWave);
         Debug.Log("Wave " + currentWave + " started. Enemies: " + enemiesToSpawn);
     }
 
@@ -97,73 +120,80 @@ public class EnemySpawner : MonoBehaviour
 
     private void SpawnEnemy()
     {
-        if (spawnPoint == null || targetBase == null || normalEnemyPrefab == null)
+        if (spawnPoint == null || pathPoints == null || pathPoints.Length == 0)
         {
-            Debug.LogWarning("Spawner references are missing.");
+            Debug.LogWarning("Spawner references missing.");
             return;
         }
 
-        GameObject selectedPrefab = GetEnemyPrefabForWave();
+        string key = GetEnemyKeyForSpawnIndex(enemiesSpawnedThisWave);
 
-        GameObject enemyObj = Instantiate(selectedPrefab, spawnPoint.position, Quaternion.identity);
+        GameObject enemyObj = PoolManager.Instance.Spawn(
+            key,
+            spawnPoint.position,
+            Quaternion.identity
+        );
+
+        if (enemyObj == null)
+        {
+            Debug.LogError("对象池不存在: " + key);
+            return;
+        }
 
         Enemy enemy = enemyObj.GetComponent<Enemy>();
         if (enemy != null)
         {
-            enemy.SetTarget(targetBase);
+            float bonusHealth = (currentWave - 1) * healthIncreasePerWave;
+            float bonusSpeed = (currentWave - 1) * speedIncreasePerWave;
 
-            ApplyScaledStats(enemy, selectedPrefab);
+            enemy.Initialize(pathPoints, bonusHealth, bonusSpeed);
+
+            if (WaveManager.IsNightWave)
+                enemy.ApplyNightBuff();
+            else
+                enemy.ResetNightBuff();
         }
 
         enemiesSpawnedThisWave++;
     }
 
-    private GameObject GetEnemyPrefabForWave()
+    /// <summary>
+    /// Deterministic spawn rhythm: basics early, fast enemies ramp in, tanks arrive later.
+    /// </summary>
+    private string GetEnemyKeyForSpawnIndex(int spawnIndexInWave)
     {
-        int randomValue = Random.Range(0, 100);
+        int w = currentWave;
 
-        // 前几波只刷普通敌人
-        if (currentWave <= 2)
+        if (w <= 4)
+            return normalEnemyKey;
+
+        if (w <= 7)
         {
-            return normalEnemyPrefab;
+            if (spawnIndexInWave % 5 == 4)
+                return fastEnemyKey;
+            return normalEnemyKey;
         }
 
-        // 第3波开始加入快敌人
-        if (currentWave <= 4)
+        if (w <= 11)
         {
-            if (randomValue < 70) return normalEnemyPrefab;
-            return fastEnemyPrefab != null ? fastEnemyPrefab : normalEnemyPrefab;
+            switch (spawnIndexInWave % 7)
+            {
+                case 2:
+                case 5:
+                    return fastEnemyKey;
+                case 6:
+                    return tankEnemyKey;
+                default:
+                    return normalEnemyKey;
+            }
         }
 
-        // 第5波开始加入坦克敌人
-        if (randomValue < 50) return normalEnemyPrefab;
-        if (randomValue < 80) return fastEnemyPrefab != null ? fastEnemyPrefab : normalEnemyPrefab;
-        return tankEnemyPrefab != null ? tankEnemyPrefab : normalEnemyPrefab;
-    }
-
-    private void ApplyScaledStats(Enemy enemy, GameObject prefabUsed)
-    {
-        float scaledHealth = baseHealth + (currentWave - 1) * healthIncreasePerWave;
-        float scaledSpeed = baseSpeed + (currentWave - 1) * speedIncreasePerWave;
-
-        int reward = 10;
-        int damageToBase = 1;
-
-        if (prefabUsed == fastEnemyPrefab)
-        {
-            scaledHealth *= 0.7f;
-            scaledSpeed *= 1.5f;
-            reward = 12;
-        }
-        else if (prefabUsed == tankEnemyPrefab)
-        {
-            scaledHealth *= 2f;
-            scaledSpeed *= 0.7f;
-            reward = 20;
-            damageToBase = 2;
-        }
-
-        enemy.InitializeStats(scaledHealth, scaledSpeed, reward, damageToBase);
+        int m = spawnIndexInWave % 9;
+        if (m == 8)
+            return tankEnemyKey;
+        if (m == 1 || m == 4 || m == 6)
+            return fastEnemyKey;
+        return normalEnemyKey;
     }
 
     public int GetCurrentWave()
@@ -180,4 +210,11 @@ public class EnemySpawner : MonoBehaviour
     {
         return waveTimer;
     }
+
+    /// <summary>Per-wave countdown (HUD). While a wave is active it counts down; at 0, StartWave runs.</summary>
+    public float GetWaveDisplayCountdownRemaining()
+    {
+        return waveDisplayCountdownRemaining;
+    }
+    
 }

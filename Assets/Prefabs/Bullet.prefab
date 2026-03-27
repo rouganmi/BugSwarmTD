@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 7129389387701184522}
   - component: {fileID: 3947728618696500385}
   - component: {fileID: 2663218691615196646}
+  - component: {fileID: 4927062407294834953}
   m_Layer: 0
   m_Name: Bullet
   m_TagString: Untagged
@@ -120,3 +121,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   moveSpeed: 10
   damage: 6
+--- !u!114 &4927062407294834953
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6423999704356200313}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b6fa51bdc44e6b04d93794c485a096f6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  poolKey: Projectile_Bullet

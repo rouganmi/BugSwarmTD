@@ -16,7 +16,13 @@ public class Tower : MonoBehaviour
     public int upgradeCost = 50;
     public int sellValue = 20;
 
+    [Tooltip("0 = no level cap (unlimited upgrades).")]
+    [SerializeField] private int maxTowerLevel = 0;
+
     private float timer = 0f;
+
+    /// <summary>When <see cref="maxTowerLevel"/> &gt; 0 and level reached, upgrades are disabled in UI.</summary>
+    public bool IsAtMaxLevel() => maxTowerLevel > 0 && level >= maxTowerLevel;
 
     private void Update()
     {
@@ -33,9 +39,19 @@ public class Tower : MonoBehaviour
     {
         Enemy target = FindNearestEnemy();
 
-        if (target != null && bulletPrefab != null && firePoint != null)
+        if (target != null && firePoint != null)
         {
-            GameObject bulletObj = Instantiate(bulletPrefab, firePoint.position, Quaternion.identity);
+            GameObject bulletObj = PoolManager.Instance.Spawn(
+                "Projectile_Bullet",
+                firePoint.position,
+                Quaternion.identity
+            );
+
+            if (bulletObj == null)
+            {
+                Debug.LogError("无法生成子弹：Projectile_Bullet 对象池不存在");
+                return;
+            }
 
             Bullet bullet = bulletObj.GetComponent<Bullet>();
             if (bullet != null)

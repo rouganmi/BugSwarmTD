@@ -13,6 +13,8 @@ GameObject:
   - component: {fileID: 7630810195985381922}
   - component: {fileID: 1809009969722215234}
   - component: {fileID: 8789354819423426708}
+  - component: {fileID: 5006758342218442884}
+  - component: {fileID: 4112933844454445620}
   m_Layer: 0
   m_Name: NormalEnemy
   m_TagString: Untagged
@@ -120,7 +122,44 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cead7126a5cbef04bad1bc9b4fc30bbe, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveSpeed: 3
   maxHealth: 10
+  baseMoveSpeed: 2
+  rewardGold: 10
   damageToBase: 2
-  goldReward: 10
+  currentHealth: 0
+--- !u!114 &5006758342218442884
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3646270270732519149}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b6fa51bdc44e6b04d93794c485a096f6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  poolKey: Enemy_Basic
+--- !u!136 &4112933844454445620
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3646270270732519149}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.5
+  m_Height: 2
+  m_Direction: 1
+  m_Center: {x: 0, y: 0, z: 0}
