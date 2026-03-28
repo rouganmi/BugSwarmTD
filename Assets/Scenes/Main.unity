@@ -1002,8 +1002,8 @@ Camera:
   near clip plane: 0.3
   far clip plane: 1000
   field of view: 60
-  orthographic: 0
-  orthographic size: 5
+  orthographic: 1
+  orthographic size: 18
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -1027,13 +1027,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 18, z: -12}
+  m_LocalRotation: {x: 0.3368241, y: 0.19970706, z: -0.0733869, w: 0.9168633}
+  m_LocalPosition: {x: 0, y: 26, z: -14}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1829415822}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 55, y: 45, z: 0}
 --- !u!114 &330585547
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2050,7 +2050,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!136 &693562921
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -2577,6 +2577,7 @@ MonoBehaviour:
   normalEnemyKey: Enemy_Basic
   fastEnemyKey: Enemy_Fast
   tankEnemyKey: Enemy_Tank
+  shieldEnemyKey: Enemy_Shield
   spawnPoint: {fileID: 2135409030}
   pathPoints:
   - {fileID: 1681074112}
@@ -2587,8 +2588,12 @@ MonoBehaviour:
   timeBetweenWaves: 3
   baseEnemyCount: 3
   enemyIncreasePerWave: 2
-  healthIncreasePerWave: 3
-  speedIncreasePerWave: 0.15
+  normalHealthPerWave: 3
+  fastHealthMultiplier: 0.48
+  tankHealthMultiplier: 1.65
+  normalDamagePerWave: 0.35
+  fastDamagePerWave: 0.18
+  tankDamagePerWave: 0.42
 --- !u!4 &873898918
 Transform:
   m_ObjectHideFlags: 0
@@ -3387,7 +3392,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!136 &1064478390
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -3827,7 +3832,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!136 &1201109523
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -4057,6 +4062,10 @@ MonoBehaviour:
     prefab: {fileID: 6423999704356200313, guid: 7140eb5579aa13442935d0446e264ebd,
       type: 3}
     initialSize: 50
+  - key: Projectile_AOE_Control
+    prefab: {fileID: 8877665544332211001, guid: f4e8c2a1907b4d6e8f0a1b2c3d4e5f60,
+      type: 3}
+    initialSize: 20
   - key: Effect_Hit
     prefab: {fileID: 4333397069157616878, guid: e236c2bc71fac6749ab7337db1558950,
       type: 3}
@@ -4073,6 +4082,10 @@ MonoBehaviour:
     prefab: {fileID: 3646270270732519149, guid: d263be9a0ac160a478c78b2b658b5fb2,
       type: 3}
     initialSize: 20
+  - key: Enemy_Shield
+    prefab: {fileID: 3646270270732519149, guid: f8e7d6c5b4a3928170654433221100ab,
+      type: 3}
+    initialSize: 12
 --- !u!1 &1278312201
 GameObject:
   m_ObjectHideFlags: 0
@@ -4188,6 +4201,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1308437718}
   - component: {fileID: 1308437717}
+  - component: {fileID: 1308437720}
   m_Layer: 0
   m_Name: selectorManager
   m_TagString: Untagged
@@ -4213,6 +4227,7 @@ MonoBehaviour:
     m_Bits: 64
   towerMenu: {fileID: 20405384}
   towerBuilder: {fileID: 45049618}
+  buildSelectionUI: {fileID: 1308437720}
 --- !u!4 &1308437718
 Transform:
   m_ObjectHideFlags: 0
@@ -4228,6 +4243,30 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1308437720
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1308437716}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4b8f91c2d5e4f7a9b0c1d2e3f4a5b6c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  towerOptions: []
+  autoFillFromTowerBuilderIfEmpty: 1
+  aoeTowerPrefab: {fileID: 9091708778955431520, guid: a3c5e7b9d1f2040607080910a0b0c0d0, type: 3}
+  aoeTowerCost: 52
+  sniperTowerPrefab: {fileID: 9091708778955431520, guid: b8c7d6e5f4a3928171605544332211ab, type: 3}
+  sniperTowerCost: 68
+  currencySystem: {fileID: 1508434427}
+  towerBuilder: {fileID: 45049618}
+  panelColor: {r: 0.12, g: 0.14, b: 0.18, a: 0.96}
+  backdropColor: {r: 0, g: 0, b: 0, a: 0.45}
+  rowNormalColor: {r: 1, g: 1, b: 1, a: 1}
+  rowDisabledColor: {r: 0.55, g: 0.55, b: 0.55, a: 0.85}
 --- !u!1 &1355337542
 GameObject:
   m_ObjectHideFlags: 0
@@ -4247,7 +4286,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!136 &1355337544
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -4976,7 +5015,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!136 &1596828723
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -5321,28 +5360,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   targetCamera: {fileID: 330585545}
-  moveSpeed: 55
-  moveSmoothTime: 0.02
+  moveSpeed: 22
+  moveSmoothTime: 0.06
   enableMiddleMousePan: 1
-  middleMousePanSensitivity: 0.12
-  enforceTopDownView: 1
-  pitch: 58
-  yaw: 180
-  enableKeyboardRotation: 1
-  enableMouseRotation: 1
-  rotationSpeed: 120
-  mouseRotationSpeed: 0.25
-  mouseRotateButton: 1
-  zoomSpeed: 22
-  minCameraY: 11
-  maxCameraY: 34
-  zoomSmoothTime: 0.045
-  minDistance: 11
-  maxDistance: 42
-  minX: -48
-  maxX: 48
-  minZ: -48
-  maxZ: 48
+  middleMousePanSensitivity: 0.1
+  defaultOrthographicSize: 18
+  minOrthographicSize: 12
+  maxOrthographicSize: 28
+  zoomSpeed: 3.5
+  zoomSmoothTime: 0.08
+  boundsSourceCollider: {fileID: 3847291002}
+  edgePadding: 2
+  minX: -50
+  maxX: 50
+  minZ: -50
+  maxZ: 50
+  baseCoreObjectName: BaseCore
 --- !u!65 &1829415819
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -5423,7 +5456,7 @@ Transform:
   m_GameObject: {fileID: 1829415817}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 20}
+  m_LocalPosition: {x: 0, y: 0, z: 8}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -5604,6 +5637,59 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &3847291000
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3847291001}
+  - component: {fileID: 3847291002}
+  m_Layer: 0
+  m_Name: CameraBoundsSource
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3847291001
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3847291000}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &3847291002
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3847291000}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 100, y: 20, z: 100}
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &2135409029
 GameObject:
   m_ObjectHideFlags: 0
@@ -5753,6 +5839,72 @@ MonoBehaviour:
   mainCamera: {fileID: 330585545}
   panel: {fileID: 888888803}
   raycastDistance: 200
+--- !u!1 &771200001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 771200002}
+  - component: {fileID: 771200003}
+  - component: {fileID: 771200004}
+  m_Layer: 0
+  m_Name: HexGrid
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &771200002
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 771200001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.02, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &771200003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 771200001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  mapRadius: 8
+  hexSize: 1.41421354
+  spacingScale: 1
+  hexPrismHeight: 0.14
+  cellVisualRadiusScale: 0.996
+  cellPrefab: {fileID: 771100001, guid: f4e8a1c2b3d4567890abcdef12345678, type: 3}
+  gridManager: {fileID: 771200004}
+--- !u!114 &771200004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 771200001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d8e4b93f2ea157c6caf5d3b9e1f2a7c4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  clickCamera: {fileID: 330585545}
+  raycastDistance: 500
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -5785,3 +5937,4 @@ SceneRoots:
   - {fileID: 1829415822}
   - {fileID: 555555502}
   - {fileID: 888888802}
+  - {fileID: 771200002}

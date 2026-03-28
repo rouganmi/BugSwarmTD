@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -9,6 +10,7 @@ public class TowerSelector : MonoBehaviour
     public LayerMask buildSpotLayer;
     public TowerMenu towerMenu;
     [SerializeField] private TowerBuilder towerBuilder;
+    [SerializeField] private BuildSelectionUI buildSelectionUI;
 
     private Tower _selectedTower;
     private SelectionHighlight _selectedHighlight;
@@ -17,11 +19,91 @@ public class TowerSelector : MonoBehaviour
     {
         if (towerBuilder == null)
             towerBuilder = FindObjectOfType<TowerBuilder>();
+        if (buildSelectionUI == null)
+            buildSelectionUI = GetComponent<BuildSelectionUI>();
+        if (buildSelectionUI == null)
+            buildSelectionUI = FindObjectOfType<BuildSelectionUI>();
+    }
+
+    /// <summary>Hex 地图：点击空白或非 Hex 时关闭塔菜单与选中高亮。</summary>
+    public void ClearWorldSelectionAndTowerMenu()
+    {
+        ClearSelection();
+        if (towerMenu != null)
+            towerMenu.HideMenu();
+    }
+
+    /// <summary>Hex 地图：点击 Hex 格（建造流程）前关闭塔 UI，避免与建造窗叠加。</summary>
+    public void OnBeforeHexCellWorldClick()
+    {
+        ClearWorldSelectionAndTowerMenu();
+    }
+
+    /// <summary>
+    /// Hex 地图：由 <see cref="HexGridManager"/> 在判定 Hex 点击之前调用。
+    /// 沿射线按距离遍历所有命中，优先解析 <see cref="Tower"/>（含子物体无 Collider 时经 <see cref="HexCell"/> 取塔）。
+    /// </summary>
+    public bool TryHandleTowerClickFromRay(Ray ray, float maxDistance, int layerMask)
+    {
+        if (towerMenu == null)
+            return false;
+
+        RaycastHit[] hits = Physics.RaycastAll(ray, maxDistance, layerMask, QueryTriggerInteraction.Ignore);
+        if (hits == null || hits.Length == 0)
+            return false;
+
+        Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+
+        foreach (RaycastHit hit in hits)
+        {
+            Tower tower = hit.collider.GetComponent<Tower>()
+                ?? hit.collider.GetComponentInParent<Tower>()
+                ?? hit.collider.GetComponentInChildren<Tower>();
+            BuildSpot spot = null;
+
+            if (tower != null)
+            {
+                spot = tower.GetComponentInParent<BuildSpot>();
+            }
+            else
+            {
+                HexCell hex = hit.collider.GetComponent<HexCell>()
+                    ?? hit.collider.GetComponentInParent<HexCell>()
+                    ?? hit.collider.GetComponentInChildren<HexCell>();
+                if (hex != null)
+                {
+                    spot = hex.GetTowerSocket();
+                    if (spot != null)
+                        tower = spot.GetCurrentTower();
+                }
+            }
+
+            if (tower == null || spot == null)
+                continue;
+            if (spot.GetCurrentTower() != tower)
+                continue;
+
+            Debug.Log($"[TowerClick] Hit tower = {tower.gameObject.name}");
+            if (buildSelectionUI != null)
+                buildSelectionUI.Close();
+            SetSelectedTower(tower);
+            towerMenu.ShowMenu(tower, spot);
+            Debug.Log($"[TowerClick] Open tower menu for {tower.gameObject.name}");
+            return true;
+        }
+
+        return false;
     }
 
     private void Update()
     {
+        if (HexGridManager.Instance != null)
+            return;
+
         if (!Input.GetMouseButtonDown(0))
+            return;
+
+        if (buildSelectionUI != null && buildSelectionUI.IsOpen)
             return;
 
         if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
@@ -45,8 +127,17 @@ public class TowerSelector : MonoBehaviour
 
             if (towerOnSpot != null)
             {
+                if (buildSelectionUI != null) buildSelectionUI.Close();
                 SetSelectedTower(towerOnSpot);
                 towerMenu.ShowMenu(towerOnSpot, spot);
+                return;
+            }
+
+            if (buildSelectionUI != null)
+            {
+                buildSelectionUI.OpenForSpot(spot);
+                towerMenu.HideMenu();
+                ClearSelection();
                 return;
             }
 
@@ -70,8 +161,15 @@ public class TowerSelector : MonoBehaviour
 
     private void ClearSelectionAndMenu()
     {
+        if (buildSelectionUI != null && buildSelectionUI.IsOpen)
+        {
+            Debug.Log("[HexInput] Ignore clear/close because BuildUI is open");
+            return;
+        }
+
         ClearSelection();
         towerMenu.HideMenu();
+        if (buildSelectionUI != null) buildSelectionUI.Close();
     }
 
     private void SetSelectedTower(Tower tower)
@@ -95,5 +193,11 @@ public class TowerSelector : MonoBehaviour
         if (_selectedHighlight != null) _selectedHighlight.SetSelected(false);
         _selectedTower = null;
         _selectedHighlight = null;
+    }
+
+    /// <summary>供 <see cref="TowerMenu.HideRadialAndDeselectForEnemy"/> 等仅清除高亮，不调用 <see cref="TowerMenu.HideMenu"/>。</summary>
+    public void ClearTowerSelectionPublic()
+    {
+        ClearSelection();
     }
 }

@@ -16,7 +16,7 @@ public class BuildSpot : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float occupiedIntensity = 0.06f;
 
     [Header("Visual — ring (decorative)")]
-    [SerializeField] private bool showRingWhenEmpty = true;
+    [SerializeField] private bool showRingWhenEmpty = false;
     [SerializeField, Range(0.05f, 0.9f)] private float ringRadiusFactor = 0.52f;
     [SerializeField] private float ringYOffset = 0.12f;
     [SerializeField] private int ringSegments = 48;
@@ -48,6 +48,8 @@ public class BuildSpot : MonoBehaviour
 
     private readonly List<ColorCacheEntry> _colorCache = new List<ColorCacheEntry>(16);
 
+    static bool _loggedHexVisualRingHidden;
+
     public bool CanBuild()
     {
         return !isOccupied && currentTower == null;
@@ -73,7 +75,19 @@ public class BuildSpot : MonoBehaviour
 
     private void EnsureRing()
     {
-        if (!showRingWhenEmpty || _ring != null) return;
+        if (!showRingWhenEmpty)
+        {
+            if (!_loggedHexVisualRingHidden && Application.isPlaying)
+            {
+                _loggedHexVisualRingHidden = true;
+                Debug.Log("[HexVisual] Green marker hidden on runtime (BuildSpot decorative ring disabled by default).");
+                Debug.Log("[AOEControl] Hidden green markers remain disabled");
+            }
+            return;
+        }
+
+        if (_ring != null)
+            return;
 
         var go = new GameObject("BuildSpotRing");
         go.transform.SetParent(transform, false);

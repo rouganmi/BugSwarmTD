@@ -4,6 +4,8 @@ using UnityEngine.UI;
 
 public class TowerMenu : MonoBehaviour
 {
+    static TowerMenu _instance;
+
     [Header("References")]
     public GameObject panel;
     public TMP_Text infoText;
@@ -20,7 +22,32 @@ public class TowerMenu : MonoBehaviour
     private BuildSpot selectedSpot;
     private RectTransform panelRectTransform;
 
-    public bool IsOpen => panel != null && panel.activeSelf;
+    /// <summary>Hex：Canvas 下全屏占位，承载屏幕空间环形菜单（<see cref="RadialTowerMenu"/>）。底部信息见 <see cref="SelectionInfoPanel"/>。</summary>
+    GameObject _radialUiHost;
+
+    RadialTowerMenu _radialMenu;
+
+    public Tower SelectedTower => selectedTower;
+
+    public bool IsOpen =>
+        (panel != null && panel.activeSelf) ||
+        (_radialUiHost != null && _radialUiHost.activeSelf);
+
+    /// <summary>供 <see cref="HexGridManager"/> 等在无引用时判断塔菜单是否打开。</summary>
+    public static TowerMenu Instance => _instance;
+
+    void Awake()
+    {
+        if (_instance != null && _instance != this)
+            return;
+        _instance = this;
+    }
+
+    void OnDestroy()
+    {
+        if (_instance == this)
+            _instance = null;
+    }
 
     private void Start()
     {
@@ -35,6 +62,60 @@ public class TowerMenu : MonoBehaviour
         }
 
         HideMenu();
+    }
+
+    void EnsureHexChrome()
+    {
+        if (_radialUiHost != null)
+            return;
+
+        Canvas canvas = FindObjectOfType<Canvas>();
+        if (canvas == null)
+        {
+            Debug.LogWarning("[TowerUI] EnsureHexChrome failed: no Canvas in scene.");
+            return;
+        }
+
+        if (canvas.GetComponent<GraphicRaycaster>() == null)
+            canvas.gameObject.AddComponent<GraphicRaycaster>();
+
+        SelectionInfoPanel.EnsureBuilt(canvas);
+
+        var radialRoot = new GameObject("RadialTowerMenuRoot", typeof(RectTransform));
+        radialRoot.transform.SetParent(canvas.transform, false);
+        radialRoot.transform.SetAsLastSibling();
+        var rrt = radialRoot.GetComponent<RectTransform>();
+        rrt.anchorMin = Vector2.zero;
+        rrt.anchorMax = Vector2.one;
+        rrt.offsetMin = Vector2.zero;
+        rrt.offsetMax = Vector2.zero;
+        _radialUiHost = radialRoot;
+        _radialMenu = radialRoot.AddComponent<RadialTowerMenu>();
+        _radialMenu.SetupScreenRadial(this, canvas);
+
+        _radialUiHost.SetActive(false);
+    }
+
+    /// <summary>选中敌人时关闭环形菜单与塔选中，但不隐藏共用底部信息栏（将由 <see cref="SelectionInfoPanel"/> 切换为敌人）。</summary>
+    public void HideRadialAndDeselectForEnemy()
+    {
+        selectedTower = null;
+        selectedSpot = null;
+
+        if (_radialUiHost != null)
+        {
+            bool radialWasOn = _radialUiHost.activeSelf;
+            _radialUiHost.SetActive(false);
+            _radialMenu?.Hide();
+            if (radialWasOn)
+                Debug.Log("[TowerUI] Hide radial menu");
+        }
+
+        var ts = FindObjectOfType<TowerSelector>();
+        ts?.ClearTowerSelectionPublic();
+
+        if (panel != null)
+            panel.SetActive(false);
     }
 
     private void Update()
@@ -79,6 +160,30 @@ public class TowerMenu : MonoBehaviour
         selectedTower = tower;
         selectedSpot = spot;
 
+        if (HexGridManager.Instance != null)
+        {
+            EnsureHexChrome();
+            if (_radialUiHost == null)
+            {
+                Debug.LogWarning("[TowerUI] Hex tower UI failed: RadialTowerMenuRoot not created (missing Canvas?).");
+                return;
+            }
+
+            if (panel != null)
+                panel.SetActive(false);
+
+            _radialUiHost.SetActive(true);
+
+            SelectionInfoPanel.Instance?.ShowTower(this);
+            _radialMenu?.Show(this);
+
+            Debug.Log($"[TowerUI] Show radial menu for {tower.gameObject.name}");
+
+            RefreshInfo();
+            UpdatePanelPosition();
+            return;
+        }
+
         if (panel != null)
             panel.SetActive(true);
 
@@ -88,37 +193,94 @@ public class TowerMenu : MonoBehaviour
 
     public void HideMenu()
     {
+        bool hadHexChrome = HexGridManager.Instance != null &&
+            (_radialUiHost != null && _radialUiHost.activeSelf);
+
+        if (hadHexChrome)
+            Debug.Log("[TowerUI] Hide tower menu");
+
         selectedTower = null;
         selectedSpot = null;
 
+        if (_radialUiHost != null)
+        {
+            _radialUiHost.SetActive(false);
+            _radialMenu?.Hide();
+            if (hadHexChrome)
+                Debug.Log("[TowerUI] Hide radial menu");
+        }
+
         if (panel != null)
             panel.SetActive(false);
+
+        SelectionInfoPanel.Instance?.Hide();
     }
 
+    /// <summary>Legacy UI / UnityEvent: picks Route A if none selected, else continues current route.</summary>
     public void UpgradeSelectedTower()
+    {
+        if (selectedTower == null || currencySystem == null)
+        {
+            Debug.Log("[TowerUpgrade] Upgrade failed reason=no_tower_or_currency");
+            return;
+        }
+
+        TowerRouteKind r = selectedTower.SelectedRoute == TowerRouteKind.None
+            ? TowerRouteKind.A
+            : selectedTower.SelectedRoute;
+        TryPurchaseRoute(r);
+    }
+
+    public void TryPurchaseRoute(TowerRouteKind route)
     {
         if (selectedTower == null || currencySystem == null)
             return;
 
-        int cost = selectedTower.GetUpgradeCost();
-        int gold = currencySystem.GetCurrentGold();
-        Debug.Log($"[TowerMenu] Upgrade clicked. TowerLv={selectedTower.level}, Gold={gold}, UpgradeCost={cost}");
+        Tower t = selectedTower;
 
-        if (!currencySystem.HasEnoughGold(cost))
+        if (t.IsRouteButtonLocked(route))
         {
-            Debug.Log($"[TowerMenu] Not enough gold. Gold={gold}, UpgradeCost={cost}");
+            Debug.Log($"[TowerRoute] Route button locked = {route}");
             return;
         }
 
-        bool spent = currencySystem.SpendGold(cost);
-        Debug.Log($"[TowerMenu] SpendGold({cost}) result: {spent}");
-        if (!spent)
+        if (!t.IsRouteButtonInteractable(route))
             return;
 
-        selectedTower.UpgradeTower();
-        RefreshInfo();
+        if (t.IsAtMaxLevel())
+        {
+            Debug.Log("[TowerUpgrade] Upgrade failed reason=max_level");
+            RefreshInfo();
+            SyncSelectionInfoPanel("max_level");
+            return;
+        }
 
-        if (panel != null)
+        int cost = t.GetNextRouteUpgradeCost();
+        if (cost <= 0)
+            return;
+
+        if (!currencySystem.HasEnoughGold(cost))
+        {
+            Debug.Log($"[TowerUpgrade] Upgrade failed reason=insufficient_gold need={cost} have={currencySystem.GetCurrentGold()}");
+            RefreshInfo();
+            SyncSelectionInfoPanel("gold_state");
+            return;
+        }
+
+        if (!currencySystem.SpendGold(cost))
+        {
+            Debug.Log("[TowerUpgrade] Upgrade failed reason=spend_rejected");
+            SyncSelectionInfoPanel("spend_rejected");
+            return;
+        }
+
+        t.ApplyRouteUpgradeAfterPurchase(route, cost);
+        Debug.Log($"[TowerRoute] Refresh bottom info panel for tower = {t.gameObject.name}");
+
+        RefreshInfo();
+        SyncSelectionInfoPanel("route_upgrade");
+
+        if (panel != null && panel.activeSelf)
         {
             var presenter = panel.GetComponent<TowerMenuPanelPresenter>();
             presenter?.PlayUpgradeFeedback();
@@ -128,27 +290,54 @@ public class TowerMenu : MonoBehaviour
     public void SellSelectedTower()
     {
         if (selectedTower == null || currencySystem == null || selectedSpot == null)
+        {
+            Debug.Log("[TowerSell] Sell aborted (missing tower, currency, or spot)");
             return;
+        }
 
-        currencySystem.AddGold(selectedTower.GetSellValue());
+        var hex = selectedSpot.GetComponentInParent<HexCell>();
+        int refund = selectedTower.GetSellValue();
+        string towerName = selectedTower.gameObject.name;
 
+        currencySystem.AddGold(refund);
         Destroy(selectedTower.gameObject);
-        selectedSpot.ClearTower();
+
+        if (hex != null)
+            hex.NotifyTowerSold();
+        else
+            selectedSpot.ClearTower();
+
+        Debug.Log($"[TowerSell] Sell success tower={towerName} refund={refund}");
 
         HideMenu();
     }
 
     private void RefreshInfo()
     {
-        if (selectedTower == null || infoText == null)
+        if (selectedTower == null)
             return;
 
         Tower tower = selectedTower;
         float currentDamage = tower.bulletDamage;
-        float nextDamage = currentDamage + 1f;
+        bool splash = tower.splashRadius > 0.001f;
+        bool sniper = tower.IsSniperTower;
+        float dmgBonus = splash ? 0.4f : (sniper ? 1.15f : 1f);
+        float nextDamage = currentDamage + dmgBonus;
 
         float currentRange = tower.attackRange;
-        float nextRange = currentRange + 1f;
+        float rangeBonus = sniper ? 1.15f : 1f;
+        float nextRange = currentRange + rangeBonus;
+
+        float nextInterval = splash
+            ? Mathf.Max(0.2f, tower.attackInterval - 0.06f)
+            : sniper
+                ? Mathf.Max(0.38f, tower.attackInterval - 0.05f)
+                : Mathf.Max(0.2f, tower.attackInterval - 0.1f);
+
+        float splashDmg = splash ? currentDamage * tower.splashDamageRatio : 0f;
+        float nextSplashDmg = splash ? nextDamage * tower.splashDamageRatio : 0f;
+        float splashRad = tower.splashRadius;
+        float nextSplashRad = splash ? Mathf.Min(splashRad + 0.14f, 3.5f) : 0f;
 
         int cost = tower.GetUpgradeCost();
         int sell = tower.GetSellValue();
@@ -157,33 +346,82 @@ public class TowerMenu : MonoBehaviour
         bool canAfford = currencySystem != null && currencySystem.HasEnoughGold(cost);
         bool canUpgrade = !atMax && canAfford;
 
-        if (atMax)
+        string splashBlock = "";
+        if (splash)
         {
-            infoText.text =
-                $"Tower Lv.{tower.level}  [MAX]\n\n" +
-                $"Damage: {currentDamage:0.#}\n" +
-                $"Range: {currentRange:0.#}\n\n" +
-                $"Upgrade Cost: MAX\n" +
-                $"Sell Value: {sell}";
-        }
-        else
-        {
-            infoText.text =
-                $"Tower Lv.{tower.level}\n\n" +
-                $"Damage: {currentDamage:0.#} -> {nextDamage:0.#}\n" +
-                $"Range: {currentRange:0.#} -> {nextRange:0.#}\n\n" +
-                $"Upgrade Cost: {cost}\n" +
-                $"Sell Value: {sell}";
+            if (tower.SelectedRoute == TowerRouteKind.B && tower.RouteLevel > 0)
+            {
+                float dot = tower.GetAoeControlDotPerTick();
+                splashBlock = $"Control zone DOT: {dot:0.##} per 0.5s\n\n";
+            }
+            else
+            {
+                splashBlock =
+                    $"Splash radius: {splashRad:0.##}\n" +
+                    $"Splash dmg: {splashDmg:0.#}\n\n";
+                if (!atMax)
+                {
+                    splashBlock =
+                        $"Splash radius: {splashRad:0.##} -> {nextSplashRad:0.##}\n" +
+                        $"Splash dmg: {splashDmg:0.#} -> {nextSplashDmg:0.#}\n\n";
+                }
+            }
         }
 
-        if (upgradeButton != null)
-            upgradeButton.interactable = canUpgrade;
+        string sniperBlock = sniper ? $"Target: Tank > High HP\nShot speed: {(tower.bulletSpeed > 0.001f ? tower.bulletSpeed : 12f):0.#}\n\n" : "";
 
-        if (panel != null)
+        string intervalAtMax = sniper ? $"Interval: {tower.attackInterval:0.##}s\n" : "";
+        string intervalUpgrade = sniper ? $"Interval: {tower.attackInterval:0.##}s -> {nextInterval:0.##}s\n" : "";
+
+        bool legacyVisible = panel != null && panel.activeSelf && infoText != null;
+
+        if (legacyVisible)
+        {
+            if (atMax)
+            {
+                infoText.text =
+                    $"Tower Lv.{tower.level}  [MAX]\n\n" +
+                    $"Damage: {currentDamage:0.#}\n" +
+                    $"Range: {currentRange:0.#}\n" +
+                    intervalAtMax +
+                    sniperBlock +
+                    splashBlock +
+                    $"Upgrade Cost: MAX\n" +
+                    $"Sell Value: {sell}";
+            }
+            else
+            {
+                infoText.text =
+                    $"Tower Lv.{tower.level}\n\n" +
+                    $"Damage: {currentDamage:0.#} -> {nextDamage:0.#}\n" +
+                    $"Range: {currentRange:0.#} -> {nextRange:0.#}\n" +
+                    intervalUpgrade +
+                    sniperBlock +
+                    splashBlock +
+                    $"Upgrade Cost: {cost}\n" +
+                    $"Sell Value: {sell}";
+            }
+        }
+
+        if (upgradeButton != null && legacyVisible)
+            upgradeButton.interactable = !atMax;
+
+        if (legacyVisible && panel != null)
         {
             var presenter = panel.GetComponent<TowerMenuPanelPresenter>();
             presenter?.SetUpgradeState(atMax, !atMax && !canAfford);
         }
+
+        if (HexGridManager.Instance != null && _radialUiHost != null && _radialUiHost.activeSelf)
+            _radialMenu?.RefreshButtonStates();
+    }
+
+    /// <summary>仅在属性/金币等需要更新底部栏时调用；勿在 Update 每帧调用。</summary>
+    void SyncSelectionInfoPanel(string reason)
+    {
+        if (HexGridManager.Instance == null || SelectionInfoPanel.Instance == null || _radialUiHost == null || !_radialUiHost.activeSelf)
+            return;
+        SelectionInfoPanel.Instance.RefreshTowerFromMenu(this, reason);
     }
 
     private void UpdatePanelPosition()

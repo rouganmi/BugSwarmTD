@@ -20,8 +20,14 @@ public class WaveManager : MonoBehaviour
     public static void NotifyWaveStarted(int waveIndex)
     {
         CurrentWave = waveIndex;
-        IsNightWave = waveIndex > 0 && waveIndex % NightWaveInterval == 0;
+        IsNightWave = IsNightWaveIndex(waveIndex);
 
         Debug.Log(IsNightWave ? "[Wave] Night Mode ON" : "[Wave] Night Mode OFF");
+    }
+
+    /// <summary>True for waves 7, 14, 21, … (same rule as <see cref="IsNightWave"/> after that wave starts).</summary>
+    public static bool IsNightWaveIndex(int waveIndex)
+    {
+        return waveIndex > 0 && waveIndex % NightWaveInterval == 0;
     }
 }

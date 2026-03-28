@@ -1,176 +1,226 @@
 using UnityEngine;
-using UnityEngine.EventSystems;
 
+/// <summary>
+/// 阶段1 实验地图：固定角度的正交战术相机（WASD / 中键平移 / 滚轮缩放），边界来自 CameraBoundsSource BoxCollider。
+/// </summary>
 public class CameraController : MonoBehaviour
 {
+    public const float FixedPitch = 55f;
+    public const float FixedYaw = 45f;
+
     [Header("References")]
     [SerializeField] private Camera targetCamera;
 
     [Header("Move")]
-    [SerializeField] private float moveSpeed = 35f;
-    [SerializeField] private float moveSmoothTime = 0.04f;
+    [SerializeField] private float moveSpeed = 22f;
+    [SerializeField] private float moveSmoothTime = 0.06f;
 
     [Header("Pan (middle mouse)")]
     [SerializeField] private bool enableMiddleMousePan = true;
-    [SerializeField] private float middleMousePanSensitivity = 0.12f;
+    [SerializeField] private float middleMousePanSensitivity = 0.1f;
 
-    [Header("View (Tower Defense Top-Down)")]
-    [SerializeField] private bool enforceTopDownView = true;
-    [SerializeField, Range(35f, 80f)] private float pitch = 60f;
-    [SerializeField, Range(0f, 360f)] private float yaw = 45f;
-
-    [Header("Rotation")]
-    [SerializeField] private bool enableKeyboardRotation = true;
-    [SerializeField] private bool enableMouseRotation = true;
-    [SerializeField] private float rotationSpeed = 120f; // degrees/sec
-    [SerializeField] private float mouseRotationSpeed = 0.25f; // degrees per pixel
-    [SerializeField] private int mouseRotateButton = 1; // right mouse
-
-    [Header("Zoom")]
-    [SerializeField] private float zoomSpeed = 25f;
-    [SerializeField] private float minCameraY = 12f;
-    [SerializeField] private float maxCameraY = 35f;
-    [SerializeField] private float zoomSmoothTime = 0.04f;
-    [SerializeField] private float minDistance = 10f;
-    [SerializeField] private float maxDistance = 45f;
-    [SerializeField] private bool zoomToMousePosition = true;
-    [SerializeField] private float zoomToMouseStrength = 11f;
-    [SerializeField] private float zoomToMouseOutFactor = 0.7f;
-    [SerializeField] private float zoomFocusSmoothTime = 0.06f;
-    [SerializeField] private float groundPlaneY = 0f;
+    [Header("Orthographic zoom")]
+    [SerializeField] private float defaultOrthographicSize = 18f;
+    [SerializeField] private float minOrthographicSize = 12f;
+    [SerializeField] private float maxOrthographicSize = 28f;
+    [SerializeField] private float zoomSpeed = 3.5f;
+    [SerializeField] private float zoomSmoothTime = 0.08f;
 
     [Header("Bounds")]
+    [Tooltip("必须：CameraBoundsSource 上的 BoxCollider")]
+    [SerializeField] private BoxCollider boundsSourceCollider;
+
+    [SerializeField] private float edgePadding = 2f;
+
+    [Tooltip("无边界源时的回退范围")]
     [SerializeField] private float minX = -50f;
     [SerializeField] private float maxX = 50f;
     [SerializeField] private float minZ = -50f;
     [SerializeField] private float maxZ = 50f;
 
+    [Header("Initial view")]
+    [SerializeField] private string baseCoreObjectName = "BaseCore";
+
     private Vector3 _moveVelocity;
-    private float _zoomVelocityY;
-    private float _targetCameraLocalY;
-    private float _zoomVelocityDistance;
-    private float _targetDistance;
-    private bool _isMouseRotating;
-    private Vector3 _zoomFocusVelocity;
-    private bool _warnedInvalidCameraWrite;
+    private float _targetOrthoSize;
+    private float _orthoSizeVelocity;
+
+    private bool _modeLoggedOnce;
+    private bool _boundsLoggedOnce;
+
+    private float _cachedUsableMinX;
+    private float _cachedUsableMaxX;
+    private float _cachedUsableMinZ;
+    private float _cachedUsableMaxZ;
 
     private static bool IsFinite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
-    private static bool IsFinite(Vector3 v) => IsFinite(v.x) && IsFinite(v.y) && IsFinite(v.z);
+    private static bool IsFiniteVec(Vector3 v) => IsFinite(v.x) && IsFinite(v.y) && IsFinite(v.z);
 
     private void Awake()
     {
         if (targetCamera == null)
-        {
             targetCamera = GetComponentInChildren<Camera>();
-        }
-
         if (targetCamera == null)
-        {
             targetCamera = Camera.main;
-        }
 
         if (targetCamera != null)
         {
-            var lp = targetCamera.transform.localPosition;
-            _targetCameraLocalY = lp.y;
-            _targetDistance = Mathf.Abs(lp.z) > 0.001f ? Mathf.Abs(lp.z) : 25f;
+            targetCamera.orthographic = true;
+            _targetOrthoSize = defaultOrthographicSize;
+            targetCamera.orthographicSize = _targetOrthoSize;
+            targetCamera.transform.localRotation = Quaternion.Euler(FixedPitch, FixedYaw, 0f);
         }
 
+        RefreshRawBoundsFromCollider();
+        ApplyInitialRigFocus();
+    }
+
+    private void Start()
+    {
+        if (!_modeLoggedOnce)
+        {
+            Debug.Log("[CameraMode] Orthographic tactical camera enabled", this);
+            _modeLoggedOnce = true;
+        }
+    }
+
+    private void ApplyInitialRigFocus()
+    {
+        Vector3 focusXZ;
+        GameObject baseGo = GameObject.Find(baseCoreObjectName);
+        if (baseGo != null)
+        {
+            Vector3 p = baseGo.transform.position;
+            focusXZ = new Vector3(p.x, 0f, p.z);
+        }
+        else if (boundsSourceCollider != null)
+        {
+            Vector3 c = boundsSourceCollider.bounds.center;
+            focusXZ = new Vector3(c.x, 0f, c.z);
+        }
+        else
+        {
+            return;
+        }
+
+        Vector3 pos = transform.position;
+        pos.x = focusXZ.x;
+        pos.z = focusXZ.z;
+        pos.y = 0f;
+        transform.position = pos;
+    }
+
+    private void RefreshRawBoundsFromCollider()
+    {
+        if (boundsSourceCollider != null)
+        {
+            Bounds b = boundsSourceCollider.bounds;
+            minX = b.min.x;
+            maxX = b.max.x;
+            minZ = b.min.z;
+            maxZ = b.max.z;
+        }
         NormalizeBounds();
+    }
+
+    private void NormalizeBounds()
+    {
+        if (maxX < minX) (minX, maxX) = (maxX, minX);
+        if (maxZ < minZ) (minZ, maxZ) = (maxZ, minZ);
+        if (maxOrthographicSize < minOrthographicSize)
+            (minOrthographicSize, maxOrthographicSize) = (maxOrthographicSize, minOrthographicSize);
+    }
+
+    private void UpdateUsableBoundsCache()
+    {
+        if (targetCamera == null) return;
+
+        float ortho = targetCamera.orthographicSize;
+        float halfH = ortho;
+        float halfW = ortho * Mathf.Max(0.01f, targetCamera.aspect);
+        float pad = edgePadding;
+
+        float uMinX = minX + halfW + pad;
+        float uMaxX = maxX - halfW - pad;
+        float uMinZ = minZ + halfH + pad;
+        float uMaxZ = maxZ - halfH - pad;
+
+        if (uMaxX < uMinX)
+        {
+            float c = (minX + maxX) * 0.5f;
+            uMinX = uMaxX = c;
+        }
+        if (uMaxZ < uMinZ)
+        {
+            float c = (minZ + maxZ) * 0.5f;
+            uMinZ = uMaxZ = c;
+        }
+
+        _cachedUsableMinX = uMinX;
+        _cachedUsableMaxX = uMaxX;
+        _cachedUsableMinZ = uMinZ;
+        _cachedUsableMaxZ = uMaxZ;
+
+        if (!_boundsLoggedOnce && boundsSourceCollider != null)
+        {
+            Debug.Log(
+                $"[CameraBounds] Source={boundsSourceCollider.gameObject.name} usableMinX={_cachedUsableMinX} usableMaxX={_cachedUsableMaxX} usableMinZ={_cachedUsableMinZ} usableMaxZ={_cachedUsableMaxZ} orthoSize={ortho}",
+                boundsSourceCollider.gameObject);
+            _boundsLoggedOnce = true;
+        }
     }
 
     private void Update()
     {
-        HandleRotation();
+        if (targetCamera != null)
+            targetCamera.transform.localRotation = Quaternion.Euler(FixedPitch, FixedYaw, 0f);
+
+        UpdateUsableBoundsCache();
         HandleMove();
         HandleMiddleMousePan();
         HandleZoom();
-        ApplyViewAndZoom();
-    }
-
-    private void HandleRotation()
-    {
-        float yawDelta = 0f;
-
-        if (enableKeyboardRotation)
-        {
-            if (Input.GetKey(KeyCode.Q)) yawDelta -= rotationSpeed * Time.deltaTime;
-            if (Input.GetKey(KeyCode.E)) yawDelta += rotationSpeed * Time.deltaTime;
-        }
-
-        if (enableMouseRotation)
-        {
-            if (Input.GetMouseButtonDown(mouseRotateButton)) _isMouseRotating = true;
-            if (Input.GetMouseButtonUp(mouseRotateButton)) _isMouseRotating = false;
-
-            if (_isMouseRotating)
-            {
-                float mx = Input.GetAxis("Mouse X");
-                yawDelta += mx * mouseRotationSpeed * 100f; // convert axis to a usable deg step
-            }
-        }
-
-        if (Mathf.Abs(yawDelta) > 0.0001f)
-        {
-            yaw = Mathf.Repeat(yaw + yawDelta, 360f);
-        }
+        ApplyOrthographicZoom();
     }
 
     private void HandleMove()
     {
-        float inputX = 0f;
-        float inputZ = 0f;
+        if (targetCamera == null) return;
 
-        inputX += Input.GetAxisRaw("Horizontal");
-        inputZ += Input.GetAxisRaw("Vertical");
+        float inputX = Input.GetAxisRaw("Horizontal");
+        float inputZ = Input.GetAxisRaw("Vertical");
 
-        Vector3 moveDir;
-        if (enforceTopDownView)
-        {
-            // Always move on XZ plane using the camera's view direction (flattened),
-            // so W/S remain "screen forward/back" even after rotating the rig.
-            Vector3 forward = targetCamera != null ? targetCamera.transform.forward : transform.forward;
-            forward.y = 0f;
-            if (forward.sqrMagnitude < 0.0001f) forward = Vector3.forward;
-            forward.Normalize();
+        Vector3 forward = targetCamera.transform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.0001f) forward = Vector3.forward;
+        forward.Normalize();
 
-            Vector3 right = Vector3.Cross(Vector3.up, forward);
-            if (right.sqrMagnitude < 0.0001f) right = Vector3.right;
-            right.Normalize();
+        Vector3 right = Vector3.Cross(Vector3.up, forward);
+        if (right.sqrMagnitude < 0.0001f) right = Vector3.right;
+        right.Normalize();
 
-            moveDir = right * inputX + forward * inputZ;
-        }
-        else
-        {
-            moveDir = new Vector3(inputX, 0f, inputZ);
-        }
-
-        if (moveDir.sqrMagnitude > 1f)
-        {
-            moveDir.Normalize();
-        }
+        Vector3 moveDir = right * inputX + forward * inputZ;
+        if (moveDir.sqrMagnitude > 1f) moveDir.Normalize();
 
         Vector3 desired = transform.position + moveDir * moveSpeed * Time.deltaTime;
-        desired.x = Mathf.Clamp(desired.x, minX, maxX);
-        desired.z = Mathf.Clamp(desired.z, minZ, maxZ);
+        desired.x = Mathf.Clamp(desired.x, _cachedUsableMinX, _cachedUsableMaxX);
+        desired.z = Mathf.Clamp(desired.z, _cachedUsableMinZ, _cachedUsableMaxZ);
 
         transform.position = Vector3.SmoothDamp(
             transform.position,
             desired,
             ref _moveVelocity,
-            Mathf.Max(0.0001f, moveSmoothTime)
-        );
+            Mathf.Max(0.0001f, moveSmoothTime));
+
+        Vector3 p = transform.position;
+        p.x = Mathf.Clamp(p.x, _cachedUsableMinX, _cachedUsableMaxX);
+        p.z = Mathf.Clamp(p.z, _cachedUsableMinZ, _cachedUsableMaxZ);
+        transform.position = p;
     }
 
-    /// <summary>
-    /// RTS-style pan on the ground plane: drag moves the rig so the map follows the cursor
-    /// (camera shifts opposite to mouse delta on the flattened view axes).
-    /// </summary>
     private void HandleMiddleMousePan()
     {
         if (!enableMiddleMousePan || targetCamera == null) return;
         if (!Input.GetMouseButton(2)) return;
-        if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
 
         float mx = Input.GetAxis("Mouse X");
         float my = Input.GetAxis("Mouse Y");
@@ -185,14 +235,10 @@ public class CameraController : MonoBehaviour
         if (right.sqrMagnitude < 0.0001f) right = Vector3.right;
         right.Normalize();
 
-        // Drag right → world appears to move right → rig moves -right (grab-the-map).
-        // Drag up → world moves “up” on screen → rig moves -forward on XZ.
         Vector3 pan = (-right * mx - forward * my) * middleMousePanSensitivity;
-
-        Vector3 p = transform.position;
-        p += pan;
-        p.x = Mathf.Clamp(p.x, minX, maxX);
-        p.z = Mathf.Clamp(p.z, minZ, maxZ);
+        Vector3 p = transform.position + pan;
+        p.x = Mathf.Clamp(p.x, _cachedUsableMinX, _cachedUsableMaxX);
+        p.z = Mathf.Clamp(p.z, _cachedUsableMinZ, _cachedUsableMaxZ);
         transform.position = p;
     }
 
@@ -203,135 +249,36 @@ public class CameraController : MonoBehaviour
         float scroll = Input.GetAxis("Mouse ScrollWheel");
         if (Mathf.Abs(scroll) < 0.001f) return;
 
-        // Scroll forward -> zoom in, scroll backward -> zoom out.
-        float delta = Mathf.Abs(scroll) * zoomSpeed;
-        if (scroll > 0f) _targetCameraLocalY -= delta; // zoom in
-        else _targetCameraLocalY += delta;            // zoom out
-        _targetCameraLocalY = Mathf.Clamp(_targetCameraLocalY, minCameraY, maxCameraY);
-
-        // Keep distance roughly in sync with height to avoid awkward perspective
-        float t = Mathf.InverseLerp(minCameraY, maxCameraY, _targetCameraLocalY);
-        _targetDistance = Mathf.Lerp(minDistance, maxDistance, t);
-
-        // Only use mouse-position-based focus shift for zoom.
-        if (zoomToMousePosition && TryGetMouseGroundPoint(out Vector3 mouseGround))
-        {
-            Vector3 toMouse = mouseGround - transform.position;
-            toMouse.y = 0f;
-            if (toMouse.sqrMagnitude > 0.0001f)
-            {
-                float zoomRange = Mathf.Max(0.001f, maxCameraY - minCameraY);
-                float zoomRatio = delta / zoomRange;
-                float dirFactor = scroll > 0f ? 1f : -Mathf.Max(0f, zoomToMouseOutFactor);
-                float moveScale = zoomToMouseStrength * zoomRatio * dirFactor;
-
-                Vector3 desiredRig = transform.position + toMouse * moveScale;
-                desiredRig.x = Mathf.Clamp(desiredRig.x, minX, maxX);
-                desiredRig.z = Mathf.Clamp(desiredRig.z, minZ, maxZ);
-
-                transform.position = Vector3.SmoothDamp(
-                    transform.position,
-                    desiredRig,
-                    ref _zoomFocusVelocity,
-                    Mathf.Max(0.0001f, zoomFocusSmoothTime)
-                );
-            }
-        }
-        // If there is no valid ground hit, keep only height/distance zoom (safe fallback),
-        // without any forward/back rig push behavior.
+        _targetOrthoSize -= scroll * zoomSpeed;
+        _targetOrthoSize = Mathf.Clamp(_targetOrthoSize, minOrthographicSize, maxOrthographicSize);
     }
 
-    private bool TryGetMouseGroundPoint(out Vector3 point)
-    {
-        point = Vector3.zero;
-        if (targetCamera == null) return false;
-
-        Ray ray = targetCamera.ScreenPointToRay(Input.mousePosition);
-        Plane groundPlane = new Plane(Vector3.up, new Vector3(0f, groundPlaneY, 0f));
-        if (!groundPlane.Raycast(ray, out float enter)) return false;
-
-        point = ray.GetPoint(enter);
-        return true;
-    }
-
-    private void ApplyViewAndZoom()
+    private void ApplyOrthographicZoom()
     {
         if (targetCamera == null) return;
 
-        if (enforceTopDownView)
-        {
-            targetCamera.transform.localRotation = Quaternion.Euler(pitch, yaw, 0f);
-        }
+        float current = targetCamera.orthographicSize;
+        if (!IsFinite(current)) current = defaultOrthographicSize;
+        if (!IsFinite(_targetOrthoSize)) _targetOrthoSize = defaultOrthographicSize;
 
-        Vector3 localPos = targetCamera.transform.localPosition;
-
-        // Safety: prevent NaN/Infinity from corrupting camera transform.
-        if (!IsFinite(localPos) ||
-            !IsFinite(_targetCameraLocalY) || !IsFinite(_targetDistance) ||
-            !IsFinite(minCameraY) || !IsFinite(maxCameraY) || !IsFinite(minDistance) || !IsFinite(maxDistance))
-        {
-            if (!_warnedInvalidCameraWrite)
-            {
-                _warnedInvalidCameraWrite = true;
-                Debug.LogWarning($"[Camera] Invalid camera zoom state detected. localPos={localPos}, targetY={_targetCameraLocalY}, targetDist={_targetDistance}");
-            }
-            return;
-        }
-
-        float desiredY = Mathf.Clamp(_targetCameraLocalY, minCameraY, maxCameraY);
-        if (!IsFinite(desiredY))
-        {
-            if (!_warnedInvalidCameraWrite)
-            {
-                _warnedInvalidCameraWrite = true;
-                Debug.LogWarning("[Camera] Invalid desiredY (NaN/Infinity). Skipping update this frame.");
-            }
-            return;
-        }
-
-        localPos.y = Mathf.SmoothDamp(localPos.y, desiredY, ref _zoomVelocityY, Mathf.Max(0.0001f, zoomSmoothTime));
-
-        float desiredDistance = Mathf.Clamp(_targetDistance, minDistance, maxDistance);
-        float currentDistance = Mathf.Abs(localPos.z);
-        if (!IsFinite(desiredDistance) || !IsFinite(currentDistance) || !IsFinite(_zoomVelocityDistance))
-        {
-            _zoomVelocityDistance = 0f;
-            float safeDistance = IsFinite(desiredDistance) ? desiredDistance : (minDistance + maxDistance) * 0.5f;
-            localPos.z = -safeDistance;
-
-            if (!_warnedInvalidCameraWrite)
-            {
-                _warnedInvalidCameraWrite = true;
-                Debug.LogWarning("[Camera] Invalid zoom smoothing state. Resetting distance this frame.");
-            }
-
-            targetCamera.transform.localPosition = localPos;
-            return;
-        }
-
-        float smoothedDistance = Mathf.SmoothDamp(currentDistance, desiredDistance, ref _zoomVelocityDistance, Mathf.Max(0.0001f, zoomSmoothTime));
-        if (!IsFinite(smoothedDistance))
-        {
-            _zoomVelocityDistance = 0f;
-            smoothedDistance = desiredDistance;
-        }
-
-        localPos.z = -smoothedDistance;
-        targetCamera.transform.localPosition = localPos;
+        float smooth = Mathf.Max(0.0001f, zoomSmoothTime);
+        float next = Mathf.SmoothDamp(current, _targetOrthoSize, ref _orthoSizeVelocity, smooth);
+        if (!IsFinite(next)) next = _targetOrthoSize;
+        next = Mathf.Clamp(next, minOrthographicSize, maxOrthographicSize);
+        targetCamera.orthographicSize = next;
     }
 
-    private void NormalizeBounds()
+#if UNITY_EDITOR
+    private void OnValidate()
     {
-        if (maxX < minX) (minX, maxX) = (maxX, minX);
-        if (maxZ < minZ) (minZ, maxZ) = (maxZ, minZ);
-        if (maxCameraY < minCameraY) (minCameraY, maxCameraY) = (maxCameraY, minCameraY);
-        if (maxDistance < minDistance) (minDistance, maxDistance) = (maxDistance, minDistance);
+        NormalizeBounds();
     }
+#endif
 
     private void OnDrawGizmosSelected()
     {
-        Gizmos.color = Color.green;
-        Vector3 center = new Vector3((minX + maxX) * 0.5f, transform.position.y, (minZ + maxZ) * 0.5f);
+        Gizmos.color = Color.cyan;
+        Vector3 center = new Vector3((minX + maxX) * 0.5f, 0f, (minZ + maxZ) * 0.5f);
         Vector3 size = new Vector3(maxX - minX, 0.1f, maxZ - minZ);
         Gizmos.DrawWireCube(center, size);
     }

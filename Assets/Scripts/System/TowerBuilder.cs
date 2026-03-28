@@ -14,6 +14,9 @@ public class TowerBuilder : MonoBehaviour
     public int towerCost = 30;
     [SerializeField] private float previewYOffset = 0.5f;
 
+    /// <summary>Vertical offset from build spot surface; shared with <see cref="BuildPreviewController"/>.</summary>
+    public float PreviewYOffset => previewYOffset;
+
     [Header("Preview Materials")]
     public Material validPreviewMaterial;
     public Material invalidPreviewMaterial;
@@ -39,10 +42,28 @@ public class TowerBuilder : MonoBehaviour
         {
             currentPreview = Instantiate(towerPreviewPrefab);
             currentPreview.SetActive(false);
+            ApplyPreviewLayerAndNoPhysics(currentPreview);
         }
         else
         {
             Debug.LogWarning("[TowerBuilder] towerPreviewPrefab is null. Build preview is disabled.");
+        }
+    }
+
+    static void ApplyPreviewLayerAndNoPhysics(GameObject root)
+    {
+        if (root == null) return;
+        int previewLayer = LayerMask.NameToLayer("Preview");
+        if (previewLayer < 0) previewLayer = 7;
+
+        foreach (var t in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (t != null)
+                t.gameObject.layer = previewLayer;
+        }
+        foreach (var c in root.GetComponentsInChildren<Collider>(true))
+        {
+            if (c != null) c.enabled = false;
         }
     }
 
@@ -51,30 +72,69 @@ public class TowerBuilder : MonoBehaviour
         UpdatePreview();
     }
 
-    /// <summary>Called from TowerSelector with the spot under the cursor for this frame (same raycast as selection).</summary>
+    /// <summary>Called from TowerSelector / <see cref="BuildSelectionUI"/> with the spot under the cursor for this frame (same raycast as selection).</summary>
     public bool TryBuildOnSpot(BuildSpot spot)
     {
-        if (towerPrefab == null || spot == null || currencySystem == null)
+        return TryBuildOnSpot(spot, towerPrefab, towerCost);
+    }
+
+    /// <summary>Build using an explicit prefab and cost (e.g. tower pick list). Falls back to default prefab/cost when null / negative.</summary>
+    public bool TryBuildOnSpot(BuildSpot spot, GameObject prefabOverride, int costOverride)
+    {
+        GameObject prefab = prefabOverride != null ? prefabOverride : towerPrefab;
+        int cost = costOverride >= 0 ? costOverride : towerCost;
+
+        if (prefab == null)
+        {
+            Debug.LogWarning("[TowerBuilder] Build failed: prefab null");
             return false;
+        }
+
+        if (spot == null)
+        {
+            Debug.LogWarning("[TowerBuilder] Build failed: spot null");
+            return false;
+        }
+
+        if (currencySystem == null)
+        {
+            Debug.LogWarning("[TowerBuilder] Build failed: currency system null");
+            return false;
+        }
 
         if (!spot.CanBuild())
+        {
+            Debug.LogWarning("[TowerBuilder] Build failed: spot cannot build");
             return false;
+        }
 
-        if (!currencySystem.SpendGold(towerCost))
+        if (!currencySystem.SpendGold(cost))
+        {
+            Debug.LogWarning("[TowerBuilder] Build failed: not enough gold or spend failed");
             return false;
+        }
 
         Vector3 buildPosition = spot.transform.position + spot.transform.up * previewYOffset;
         Quaternion buildRotation = spot.transform.rotation;
 
-        GameObject towerObj = Instantiate(towerPrefab, buildPosition, buildRotation);
+        GameObject towerObj = Instantiate(prefab, buildPosition, buildRotation);
         if (towerObj == null)
         {
-            Debug.LogError("[TowerBuilder] Instantiate returned null for towerPrefab.");
+            Debug.LogError("[TowerBuilder] Build failed: instantiate returned null");
             return false;
         }
 
         Tower tower = towerObj.GetComponent<Tower>();
         spot.SetCurrentTower(tower);
+
+        if (tower != null)
+        {
+            var hexCell = spot.GetComponentInParent<HexCell>();
+            if (hexCell != null)
+                hexCell.NotifyTowerPlaced(tower);
+        }
+
+        Debug.Log($"[TowerBuilder] Build success at position={buildPosition}");
 
         if (currentPreview != null)
             currentPreview.SetActive(false);
@@ -102,6 +162,10 @@ public class TowerBuilder : MonoBehaviour
         if (Physics.Raycast(ray, out RaycastHit hit, 100f, buildSpotLayer))
         {
             BuildSpot spot = hit.collider.GetComponent<BuildSpot>();
+            if (spot == null)
+                spot = hit.collider.GetComponentInChildren<BuildSpot>();
+            if (spot == null)
+                spot = hit.collider.GetComponentInParent<BuildSpot>();
 
             if (spot != null)
             {

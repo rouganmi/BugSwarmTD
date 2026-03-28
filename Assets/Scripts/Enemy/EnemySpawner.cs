@@ -1,4 +1,6 @@
+using System.Collections;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public class EnemySpawner : MonoBehaviour
 {
@@ -6,6 +8,7 @@ public class EnemySpawner : MonoBehaviour
     public string normalEnemyKey = "Enemy_Basic";
     public string fastEnemyKey = "Enemy_Fast";
     public string tankEnemyKey = "Enemy_Tank";
+    public string shieldEnemyKey = "Enemy_Shield";
 
     [Header("References")]
     public Transform spawnPoint;
@@ -22,8 +25,33 @@ public class EnemySpawner : MonoBehaviour
     public float waveDisplayCountdownSeconds = 25f;
 
     [Header("Scaling Settings")]
-    public float healthIncreasePerWave = 2f;
-    public float speedIncreasePerWave = 0.2f;
+    [Tooltip("Baseline HP bonus per past wave (Normal). Fast/Tank multiply this.")]
+    [FormerlySerializedAs("healthIncreasePerWave")]
+    public float normalHealthPerWave = 2f;
+
+    [Range(0.2f, 1f)]
+    [Tooltip("Multiplies Normal HP-per-wave bonus for Fast (low HP growth).")]
+    public float fastHealthMultiplier = 0.48f;
+
+    [Range(1f, 2.5f)]
+    [Tooltip("Multiplies Normal HP-per-wave bonus for Tank (high HP growth).")]
+    public float tankHealthMultiplier = 1.65f;
+
+    [Tooltip("Bonus damage to base per past wave (Normal), before flooring.")]
+    public float normalDamagePerWave = 0.35f;
+
+    [Tooltip("Bonus damage to base per past wave (Fast); kept low so Fast stays fragile.")]
+    public float fastDamagePerWave = 0.18f;
+
+    [Tooltip("Bonus damage to base per past wave (Tank); medium-high.")]
+    public float tankDamagePerWave = 0.42f;
+
+    [Header("Night wave lead-in (optional)")]
+    [Tooltip("Real-time seconds to wait before starting a night wave (7, 14, …). 0 = no delay.")]
+    public float nightLeadInSeconds = 0f;
+
+    [Tooltip("If true, a night wave waits until ConfirmNightWaveStart() is called (after lead-in). Wire a UI button to it.")]
+    public bool requireConfirmationForNightWave = false;
 
     private int currentWave = 0;
     private int enemiesToSpawn = 0;
@@ -36,6 +64,9 @@ public class EnemySpawner : MonoBehaviour
     private bool isSpawningWave = false;
     private bool isWaitingForNextWave = true;
 
+    private bool _nightSequenceActive;
+    private bool _nightStartConfirmed;
+
     private void Start()
     {
         StartNextWaveCountdown();
@@ -43,13 +74,16 @@ public class EnemySpawner : MonoBehaviour
 
     private void Update()
     {
+        if (_nightSequenceActive)
+            return;
+
         if (isWaitingForNextWave)
         {
             waveTimer -= Time.deltaTime;
 
             if (waveTimer <= 0f)
             {
-                StartWave();
+                TryScheduleNextWave();
             }
             return;
         }
@@ -60,7 +94,7 @@ public class EnemySpawner : MonoBehaviour
             if (waveDisplayCountdownRemaining <= 0f)
             {
                 waveDisplayCountdownRemaining = 0f;
-                StartWave();
+                TryScheduleNextWave();
             }
         }
         else
@@ -92,6 +126,49 @@ public class EnemySpawner : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// If the next wave is a night wave and lead-in or confirmation is enabled, runs that flow; otherwise starts the wave immediately.
+    /// </summary>
+    private void TryScheduleNextWave()
+    {
+        int nextWave = currentWave + 1;
+        bool useGate = WaveManager.IsNightWaveIndex(nextWave) &&
+                       (nightLeadInSeconds > 0.01f || requireConfirmationForNightWave);
+
+        if (useGate)
+        {
+            StartCoroutine(NightLeadInThenStartWaveRoutine(nextWave));
+            return;
+        }
+
+        StartWave();
+    }
+
+    private IEnumerator NightLeadInThenStartWaveRoutine(int upcomingWave)
+    {
+        _nightSequenceActive = true;
+        GameEvents.OnNightWaveLeadIn?.Invoke(upcomingWave);
+
+        if (nightLeadInSeconds > 0.01f)
+            yield return new WaitForSecondsRealtime(nightLeadInSeconds);
+
+        if (requireConfirmationForNightWave)
+        {
+            _nightStartConfirmed = false;
+            while (!_nightStartConfirmed)
+                yield return null;
+        }
+
+        _nightSequenceActive = false;
+        StartWave();
+    }
+
+    /// <summary>Call from a UI button when <see cref="requireConfirmationForNightWave"/> is true.</summary>
+    public void ConfirmNightWaveStart()
+    {
+        _nightStartConfirmed = true;
+    }
+
     private void StartWave()
     {
         currentWave++;
@@ -107,6 +184,9 @@ public class EnemySpawner : MonoBehaviour
         WaveManager.NotifyWaveStarted(currentWave);
 
         GameEvents.OnWaveChanged?.Invoke(currentWave);
+
+        Enemy.SyncNightBuffsWithWaveManager();
+
         Debug.Log("Wave " + currentWave + " started. Enemies: " + enemiesToSpawn);
     }
 
@@ -143,10 +223,9 @@ public class EnemySpawner : MonoBehaviour
         Enemy enemy = enemyObj.GetComponent<Enemy>();
         if (enemy != null)
         {
-            float bonusHealth = (currentWave - 1) * healthIncreasePerWave;
-            float bonusSpeed = (currentWave - 1) * speedIncreasePerWave;
+            GetWaveBonusesForKey(key, out float bonusHealth, out int bonusDamage);
 
-            enemy.Initialize(pathPoints, bonusHealth, bonusSpeed);
+            enemy.Initialize(pathPoints, bonusHealth, bonusDamage);
 
             if (WaveManager.IsNightWave)
                 enemy.ApplyNightBuff();
@@ -158,11 +237,48 @@ public class EnemySpawner : MonoBehaviour
     }
 
     /// <summary>
+    /// Per-type HP and damage growth. Move speed does not scale with waves (only night buff may multiply speed).
+    /// </summary>
+    private void GetWaveBonusesForKey(string key, out float bonusHealth, out int bonusDamageToBase)
+    {
+        int wavesPassed = Mathf.Max(0, currentWave - 1);
+
+        if (key == shieldEnemyKey)
+        {
+            bonusHealth = wavesPassed * normalHealthPerWave;
+            bonusDamageToBase = Mathf.FloorToInt(wavesPassed * normalDamagePerWave);
+        }
+        else if (key == fastEnemyKey)
+        {
+            bonusHealth = wavesPassed * normalHealthPerWave * fastHealthMultiplier;
+            bonusDamageToBase = Mathf.FloorToInt(wavesPassed * fastDamagePerWave);
+        }
+        else if (key == tankEnemyKey)
+        {
+            bonusHealth = wavesPassed * normalHealthPerWave * tankHealthMultiplier;
+            bonusDamageToBase = Mathf.FloorToInt(wavesPassed * tankDamagePerWave);
+        }
+        else
+        {
+            bonusHealth = wavesPassed * normalHealthPerWave;
+            bonusDamageToBase = Mathf.FloorToInt(wavesPassed * normalDamagePerWave);
+        }
+    }
+
+    /// <summary>
     /// Deterministic spawn rhythm: basics early, fast enemies ramp in, tanks arrive later.
     /// </summary>
     private string GetEnemyKeyForSpawnIndex(int spawnIndexInWave)
     {
         int w = currentWave;
+
+        if (w >= 5)
+        {
+            if (spawnIndexInWave == 0)
+                return shieldEnemyKey;
+            if (w % 2 == 0 && spawnIndexInWave == 4)
+                return shieldEnemyKey;
+        }
 
         if (w <= 4)
             return normalEnemyKey;
@@ -174,6 +290,7 @@ public class EnemySpawner : MonoBehaviour
             return normalEnemyKey;
         }
 
+        // Waves 8–11: fast mix-in; tanks only from wave 10 (later waves, still light).
         if (w <= 11)
         {
             switch (spawnIndexInWave % 7)
@@ -182,14 +299,15 @@ public class EnemySpawner : MonoBehaviour
                 case 5:
                     return fastEnemyKey;
                 case 6:
-                    return tankEnemyKey;
+                    return w >= 10 ? tankEnemyKey : normalEnemyKey;
                 default:
                     return normalEnemyKey;
             }
         }
 
-        int m = spawnIndexInWave % 9;
-        if (m == 8)
+        // Late waves: tanks stay a minority (~1 per 11 spawns); fast unchanged.
+        int m = spawnIndexInWave % 11;
+        if (m == 10)
             return tankEnemyKey;
         if (m == 1 || m == 4 || m == 6)
             return fastEnemyKey;
@@ -216,5 +334,8 @@ public class EnemySpawner : MonoBehaviour
     {
         return waveDisplayCountdownRemaining;
     }
+
+    /// <summary>True while lead-in wait or confirmation gate is running (night wave not started yet).</summary>
+    public bool IsNightSequenceActive => _nightSequenceActive;
     
 }
