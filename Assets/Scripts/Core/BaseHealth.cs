@@ -39,8 +39,8 @@ public class BaseHealth : MonoBehaviour
 
     private void Die()
     {
-    Debug.Log("GAME OVER");
-    Time.timeScale = 0f;
+        Debug.Log("GAME OVER");
+        Time.timeScale = 0f;
     }
 
     public int GetCurrentHealth()

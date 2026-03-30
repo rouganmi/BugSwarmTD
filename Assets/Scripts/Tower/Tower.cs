@@ -2,6 +2,15 @@ using UnityEngine;
 
 public class Tower : MonoBehaviour
 {
+    private const string PrototypeSceneName = "Chapter1_Node1_Prototype";
+    private const float PrototypeBasicDamageMultiplier = 0.75f;  // ~25% nerf
+    private const float PrototypeSniperDamageMultiplier = 1.4f;  // +40% buff
+    private const float PrototypeBasicVsBugShieldDamageMultiplier = 0.7f; // targeted nerf vs BugEnemy_Shield
+    private const float PrototypeSniperVsBugShieldDamageMultiplier = 1.15f; // small targeted bonus vs BugEnemy_Shield
+
+    // Prototype-only upgrade value compression (keeps base tower feel unchanged).
+    private const float PrototypeUpgradeDamageGainMultiplier = 0.65f;   // reduce damage growth ~35%
+    private const float PrototypeUpgradeIntervalReductionMultiplier = 0.6f; // reduce ROF gain ~40%
     [Header("Attack Settings")]
     public float attackRange = 5f;
     public float attackInterval = 1f;
@@ -48,6 +57,21 @@ public class Tower : MonoBehaviour
     void Awake()
     {
         _initialBuildCostSnapshot = Mathf.Max(1, upgradeCost);
+
+        // Prototype-only role separation tuning (keeps Main behavior unchanged).
+        if (IsPrototypeScene())
+        {
+            if (IsBasicTower)
+                bulletDamage *= PrototypeBasicDamageMultiplier;
+            else if (IsSniperTower)
+                bulletDamage *= PrototypeSniperDamageMultiplier;
+        }
+    }
+
+    private bool IsPrototypeScene()
+    {
+        return gameObject.scene.IsValid() &&
+               string.Equals(gameObject.scene.name, PrototypeSceneName, System.StringComparison.Ordinal);
     }
 
     private void Update()
@@ -122,6 +146,12 @@ public class Tower : MonoBehaviour
         bullet.splashDamage = splashRadius > 0.001f ? bulletDamage * splashDamageRatio : 0f;
         bullet.speed = bulletSpeed > 0.001f ? bulletSpeed : DefaultBulletSpeed;
         bullet.hitFxScale = 1f;
+        bullet.prototypeBugShieldDamageMultiplier = 1f;
+        if (IsPrototypeScene())
+        {
+            if (IsBasicTower) bullet.prototypeBugShieldDamageMultiplier = PrototypeBasicVsBugShieldDamageMultiplier;
+            else if (IsSniperTower) bullet.prototypeBugShieldDamageMultiplier = PrototypeSniperVsBugShieldDamageMultiplier;
+        }
         if (IsSplashTower && selectedRoute == TowerRouteKind.A && routeLevel > 0)
             bullet.hitFxScale = GetAoeBlastHitFxScale();
         ApplyControlToBullet(bullet);
@@ -229,6 +259,9 @@ public class Tower : MonoBehaviour
 
         float spd = bulletSpeed > 0.001f ? bulletSpeed : DefaultBulletSpeed;
         int maxHits = GetSniperPierceMaxEnemyHits();
+        bullet.prototypeBugShieldDamageMultiplier = 1f;
+        if (IsPrototypeScene() && IsSniperTower)
+            bullet.prototypeBugShieldDamageMultiplier = PrototypeSniperVsBugShieldDamageMultiplier;
         bullet.ConfigureSniperPierce(transform.position, attackRange, bulletDamage, maxHits, dir, spd);
     }
 
@@ -377,14 +410,14 @@ public class Tower : MonoBehaviour
         {
             if (tier == 1)
             {
-                bulletDamage += 1f;
-                attackInterval = Mathf.Max(0.18f, attackInterval - 0.07f);
+                bulletDamage += ProtoScaleDamageGain(1f);
+                attackInterval = Mathf.Max(0.18f, attackInterval - ProtoScaleIntervalReduction(0.07f));
                 attackRange += 0.35f;
             }
             else if (tier == 2)
             {
-                bulletDamage += 1.25f;
-                attackInterval = Mathf.Max(0.15f, attackInterval - 0.08f);
+                bulletDamage += ProtoScaleDamageGain(1.25f);
+                attackInterval = Mathf.Max(0.15f, attackInterval - ProtoScaleIntervalReduction(0.08f));
                 attackRange += 0.45f;
             }
         }
@@ -392,14 +425,14 @@ public class Tower : MonoBehaviour
         {
             if (tier == 1)
             {
-                bulletDamage += 0.4f;
-                attackInterval = Mathf.Max(0.22f, attackInterval - 0.04f);
+                bulletDamage += ProtoScaleDamageGain(0.4f);
+                attackInterval = Mathf.Max(0.22f, attackInterval - ProtoScaleIntervalReduction(0.04f));
                 attackRange += 0.2f;
             }
             else if (tier == 2)
             {
-                bulletDamage += 0.5f;
-                attackInterval = Mathf.Max(0.18f, attackInterval - 0.05f);
+                bulletDamage += ProtoScaleDamageGain(0.5f);
+                attackInterval = Mathf.Max(0.18f, attackInterval - ProtoScaleIntervalReduction(0.05f));
                 attackRange += 0.25f;
             }
         }
@@ -411,30 +444,42 @@ public class Tower : MonoBehaviour
         {
             if (tier == 1)
             {
-                bulletDamage += 2.8f;
+                bulletDamage += ProtoScaleDamageGain(2.8f);
                 attackRange += 1.25f;
-                attackInterval = Mathf.Max(0.42f, attackInterval - 0.025f);
+                attackInterval = Mathf.Max(0.42f, attackInterval - ProtoScaleIntervalReduction(0.025f));
             }
             else if (tier == 2)
             {
-                bulletDamage += 3.2f;
+                bulletDamage += ProtoScaleDamageGain(3.2f);
                 attackRange += 1.45f;
-                attackInterval = Mathf.Max(0.38f, attackInterval - 0.03f);
+                attackInterval = Mathf.Max(0.38f, attackInterval - ProtoScaleIntervalReduction(0.03f));
             }
         }
         else
         {
             if (tier == 1)
             {
-                bulletDamage += 0.35f;
+                bulletDamage += ProtoScaleDamageGain(0.35f);
                 attackRange += 0.35f;
             }
             else if (tier == 2)
             {
-                bulletDamage += 0.45f;
+                bulletDamage += ProtoScaleDamageGain(0.45f);
                 attackRange += 0.4f;
             }
         }
+    }
+
+    private float ProtoScaleDamageGain(float delta)
+    {
+        if (!IsPrototypeScene()) return delta;
+        return delta * PrototypeUpgradeDamageGainMultiplier;
+    }
+
+    private float ProtoScaleIntervalReduction(float delta)
+    {
+        if (!IsPrototypeScene()) return delta;
+        return delta * PrototypeUpgradeIntervalReductionMultiplier;
     }
 
     void ApplyAoeRouteTier(TowerRouteKind route, int tier)

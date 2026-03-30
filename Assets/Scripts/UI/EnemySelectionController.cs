@@ -13,6 +13,8 @@ public class EnemySelectionController : MonoBehaviour
     [SerializeField] private float raycastDistance = 200f;
 
     int _worldRaycastMask = -1;
+    Enemy _selectedEnemy;
+    SelectionHighlight _selectedHighlight;
 
     private void Awake()
     {
@@ -49,6 +51,7 @@ public class EnemySelectionController : MonoBehaviour
             {
                 SelectionInfoPanel.EnsureBuilt(FindObjectOfType<Canvas>());
                 SelectionInfoPanel.Instance?.ShowEnemy(enemy);
+                SetSelectedEnemy(enemy);
                 return;
             }
         }
@@ -57,7 +60,36 @@ public class EnemySelectionController : MonoBehaviour
         if (RayIndicatesTowerWorldTarget(ray))
             return;
 
+        ClearSelection();
         SelectionInfoPanel.Instance?.Hide();
+    }
+
+    void SetSelectedEnemy(Enemy enemy)
+    {
+        if (_selectedEnemy == enemy)
+            return;
+
+        if (_selectedHighlight != null)
+            _selectedHighlight.SetSelected(false);
+
+        _selectedEnemy = enemy;
+        _selectedHighlight = null;
+
+        if (_selectedEnemy != null)
+        {
+            _selectedHighlight = _selectedEnemy.GetComponent<SelectionHighlight>();
+            if (_selectedHighlight == null)
+                _selectedHighlight = _selectedEnemy.gameObject.AddComponent<SelectionHighlight>();
+            _selectedHighlight.SetSelected(true);
+        }
+    }
+
+    void ClearSelection()
+    {
+        if (_selectedHighlight != null)
+            _selectedHighlight.SetSelected(false);
+        _selectedEnemy = null;
+        _selectedHighlight = null;
     }
 
     /// <summary>与 <see cref="TowerSelector.TryHandleTowerClickFromRay"/> 的塔解析一致：点到塔/Hex 上的塔位时视为塔交互，不由本脚本 Hide。</summary>

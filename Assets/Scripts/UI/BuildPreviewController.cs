@@ -72,7 +72,7 @@ public class BuildPreviewController : MonoBehaviour
 
         float yOff = towerBuilder != null ? towerBuilder.PreviewYOffset : previewYOffset;
         Vector3 pos = _spot.transform.position + _spot.transform.up * yOff;
-        Quaternion rot = _spot.transform.rotation;
+        Quaternion rot = QuaternionUtil.NormalizeOrIdentity(_spot.transform.rotation);
 
         _instance = Instantiate(option.towerPrefab, pos, rot);
         StripGameplay(_instance);

@@ -30,10 +30,14 @@ public class Enemy : MonoBehaviour, IPoolable
     [Tooltip("Shield archetype only. Max shield at wave 0 before scaling; HP uses maxHealth.")]
     [SerializeField] float shieldCapacityBase;
 
+    [Header("Shield (visual)")]
+    [Tooltip("If true, skips Enemy's auto-generated shield visuals so prefabs can provide their own ShieldRoot/ShieldShell structure.")]
+    [SerializeField] bool disableAutoShieldVisuals;
+
     [Header("Runtime")]
     public float currentHealth;
 
-    float _cachedBaseShield;
+    protected float _cachedBaseShield;
     float currentShield;
     float totalMaxShield;
     float _dayTotalMaxShield;
@@ -49,13 +53,13 @@ public class Enemy : MonoBehaviour, IPoolable
     static Mesh _sharedShieldDomeMesh;
 
     /// <summary>Prefab/inspector max health (cached in Awake, never night-scaled).</summary>
-    private float _cachedBaseMaxHealth;
+    protected float _cachedBaseMaxHealth;
 
     /// <summary>Prefab/inspector move speed (cached in Awake, never night-scaled).</summary>
-    private float _cachedBaseMoveSpeed;
+    protected float _cachedBaseMoveSpeed;
 
     /// <summary>Prefab damage to base (cached in Awake).</summary>
-    private int _cachedDamageToBase;
+    protected int _cachedDamageToBase;
 
     /// <summary>Damage to base after wave bonuses, before night multiplier.</summary>
     private int _dayDamageToBase;
@@ -122,18 +126,27 @@ public class Enemy : MonoBehaviour, IPoolable
     private readonly System.Collections.Generic.List<MaterialColorCache> _shieldFlashMaterials =
         new System.Collections.Generic.List<MaterialColorCache>(4);
 
-    private void Awake()
+    protected virtual void Awake()
+    {
+        RefreshCachedBaseStatsFromInspector();
+        _infoKind = ResolveInfoKind(gameObject.name);
+        _baseScale = transform.localScale;
+        _baseRotation = QuaternionUtil.NormalizeOrIdentity(transform.localRotation);
+        if (_infoKind == InfoKind.Shield && !disableAutoShieldVisuals)
+            BuildShieldEnemyVisuals();
+        CacheFlashMaterials();
+    }
+
+    /// <summary>
+    /// Rebuilds cached "prefab baseline" stats from the current inspector fields.
+    /// Used by lightweight derived enemies that tweak maxHealth/baseMoveSpeed/shieldCapacityBase before Initialize.
+    /// </summary>
+    protected void RefreshCachedBaseStatsFromInspector()
     {
         _cachedBaseMaxHealth = maxHealth;
         _cachedBaseMoveSpeed = baseMoveSpeed;
         _cachedDamageToBase = damageToBase;
         _cachedBaseShield = Mathf.Max(0f, shieldCapacityBase);
-        _infoKind = ResolveInfoKind(gameObject.name);
-        _baseScale = transform.localScale;
-        _baseRotation = transform.localRotation;
-        if (_infoKind == InfoKind.Shield)
-            BuildShieldEnemyVisuals();
-        CacheFlashMaterials();
     }
 
     private static InfoKind ResolveInfoKind(string objectName)
@@ -175,6 +188,19 @@ public class Enemy : MonoBehaviour, IPoolable
     /// <param name="bonusDamageToBase">Wave-scaled damage to base (type-specific from spawner).</param>
     public void Initialize(Transform[] points, float bonusHealth, int bonusDamageToBase)
     {
+        if (_cachedBaseMoveSpeed <= 0f)
+        {
+            Debug.LogWarning("[Enemy] baseMoveSpeed was 0, forcing refresh", this);
+            RefreshCachedBaseStatsFromInspector();
+        }
+
+        Debug.Log(
+            "[Enemy.Initialize] Called on: " + GetType().Name +
+            " points=" + (points != null ? points.Length : 0) +
+            " baseMoveSpeed=" + _cachedBaseMoveSpeed.ToString("0.##") +
+            " (pre)active=" + isActiveEnemy,
+            this);
+
         pathPoints = points;
         currentPointIndex = 0;
 
@@ -214,6 +240,13 @@ public class Enemy : MonoBehaviour, IPoolable
         {
             transform.position = pathPoints[0].position;
         }
+
+        Debug.Log(
+            "[Enemy.Initialize] Active=" + isActiveEnemy +
+            " moveSpeed=" + currentMoveSpeed.ToString("0.##") +
+            " pointIndex=" + currentPointIndex +
+            " pathPoints=" + (pathPoints != null ? pathPoints.Length : 0),
+            this);
 
         if (_infoKind == InfoKind.Shield)
             Debug.Log("[ShieldEnemy] Spawned shield enemy");
@@ -413,7 +446,7 @@ public class Enemy : MonoBehaviour, IPoolable
         }
     }
 
-    public void TakeDamage(float damage)
+    public virtual void TakeDamage(float damage)
     {
         if (_isDying) return;
         // Pool.Return disables the object before IPoolable.OnDespawn; late hits must not start coroutines.
@@ -529,9 +562,10 @@ public class Enemy : MonoBehaviour, IPoolable
         totalMaxHealth = _cachedBaseMaxHealth;
         ResetAoeControlState();
         if (_baseScale == Vector3.zero) _baseScale = transform.localScale;
-        if (_baseRotation == Quaternion.identity) _baseRotation = transform.localRotation;
+        if (_baseRotation == Quaternion.identity)
+            _baseRotation = QuaternionUtil.NormalizeOrIdentity(transform.localRotation);
         transform.localScale = _baseScale;
-        transform.localRotation = _baseRotation;
+        transform.localRotation = QuaternionUtil.NormalizeOrIdentity(_baseRotation);
         RestoreBodyFlashColors();
         RestoreShieldFlashColors();
         ResetShieldShellAfterPool();
@@ -569,7 +603,7 @@ public class Enemy : MonoBehaviour, IPoolable
             _shieldFlashCo = null;
         }
         transform.localScale = _baseScale;
-        transform.localRotation = _baseRotation;
+        transform.localRotation = QuaternionUtil.NormalizeOrIdentity(_baseRotation);
         RestoreBodyFlashColors();
         RestoreShieldFlashColors();
     }
@@ -1092,8 +1126,9 @@ public class Enemy : MonoBehaviour, IPoolable
         float t = 0f;
         Vector3 fromScale = transform.localScale;
         Vector3 toScale = _baseScale * Mathf.Clamp(deathScale, 0.6f, 1f);
-        Quaternion fromRot = transform.localRotation;
-        Quaternion toRot = Quaternion.Euler(deathTiltAngle, 0f, 0f) * _baseRotation;
+        Quaternion fromRot = QuaternionUtil.NormalizeOrIdentity(transform.localRotation);
+        Quaternion toRot = QuaternionUtil.NormalizeOrIdentity(
+            Quaternion.Euler(deathTiltAngle, 0f, 0f) * _baseRotation);
 
         while (t < duration)
         {
@@ -1103,7 +1138,8 @@ public class Enemy : MonoBehaviour, IPoolable
             float eased = 1f - Mathf.Pow(1f - a, 3f);
 
             transform.localScale = Vector3.LerpUnclamped(fromScale, toScale, eased);
-            transform.localRotation = Quaternion.SlerpUnclamped(fromRot, toRot, eased);
+            transform.localRotation = QuaternionUtil.NormalizeOrIdentity(
+                Quaternion.SlerpUnclamped(fromRot, toRot, eased));
             ApplyBodyFlashColor(1f - eased * 0.85f); // quick visual fade-out
             yield return null;
         }

@@ -5,6 +5,8 @@ using UnityEngine.UI;
 public class TowerMenu : MonoBehaviour
 {
     static TowerMenu _instance;
+    private const string PrototypeSceneName = "Chapter1_Node1_Prototype";
+    private const float PrototypeUpgradeCostMultiplier = 1.3f;
 
     [Header("References")]
     public GameObject panel;
@@ -256,6 +258,8 @@ public class TowerMenu : MonoBehaviour
         }
 
         int cost = t.GetNextRouteUpgradeCost();
+        if (IsPrototypeScene())
+            cost = AdjustPrototypeUpgradeCost(cost);
         if (cost <= 0)
             return;
 
@@ -340,6 +344,8 @@ public class TowerMenu : MonoBehaviour
         float nextSplashRad = splash ? Mathf.Min(splashRad + 0.14f, 3.5f) : 0f;
 
         int cost = tower.GetUpgradeCost();
+        if (IsPrototypeScene())
+            cost = AdjustPrototypeUpgradeCost(cost);
         int sell = tower.GetSellValue();
 
         bool atMax = tower.IsAtMaxLevel();
@@ -416,6 +422,18 @@ public class TowerMenu : MonoBehaviour
             _radialMenu?.RefreshButtonStates();
     }
 
+    private bool IsPrototypeScene()
+    {
+        return gameObject.scene.IsValid() &&
+               string.Equals(gameObject.scene.name, PrototypeSceneName, System.StringComparison.Ordinal);
+    }
+
+    private static int AdjustPrototypeUpgradeCost(int baseCost)
+    {
+        if (baseCost <= 0) return baseCost;
+        return Mathf.Max(1, Mathf.CeilToInt(baseCost * PrototypeUpgradeCostMultiplier));
+    }
+
     /// <summary>仅在属性/金币等需要更新底部栏时调用；勿在 Update 每帧调用。</summary>
     void SyncSelectionInfoPanel(string reason)
     {
@@ -440,20 +458,23 @@ public class TowerMenu : MonoBehaviour
         panel.SetActive(true);
         Vector3 offset = screenOffset;
 
-        // Auto place panel away from the tower body.
-        if (screenPos.x > Screen.width * 0.62f) offset.x = -Mathf.Abs(offset.x) - 180f;
-        else if (screenPos.x < Screen.width * 0.38f) offset.x = Mathf.Abs(offset.x) + 180f;
-        else offset.x = 220f;
+        // Auto place panel away from the tower body, with a bias to keep the battlefield center clearer:
+        // prefer right + slightly lower placement unless near edges.
+        if (screenPos.x > Screen.width * 0.66f) offset.x = -Mathf.Abs(offset.x) - 220f;
+        else offset.x = Mathf.Abs(offset.x) + 280f;
 
-        if (screenPos.y > Screen.height * 0.62f) offset.y = -Mathf.Abs(offset.y) - 140f;
-        else if (screenPos.y < Screen.height * 0.38f) offset.y = Mathf.Abs(offset.y) + 140f;
+        if (screenPos.y > Screen.height * 0.54f) offset.y = -Mathf.Abs(offset.y) - 170f;
+        else offset.y = Mathf.Abs(offset.y) + 110f;
 
         Vector3 desired = screenPos + offset;
 
-        // Clamp to screen to avoid going off-screen.
+        // Clamp to screen to avoid going off-screen (account for panel size so it doesn't hang off edges).
         float pad = 12f;
-        desired.x = Mathf.Clamp(desired.x, pad, Screen.width - pad);
-        desired.y = Mathf.Clamp(desired.y, pad, Screen.height - pad);
+        Vector2 size = panelRectTransform.rect.size;
+        float halfW = size.x * 0.5f;
+        float halfH = size.y * 0.5f;
+        desired.x = Mathf.Clamp(desired.x, pad + halfW, Screen.width - pad - halfW);
+        desired.y = Mathf.Clamp(desired.y, pad + halfH, Screen.height - pad - halfH);
 
         panelRectTransform.position = desired;
     }

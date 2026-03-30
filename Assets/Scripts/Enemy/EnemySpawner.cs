@@ -4,11 +4,27 @@ using UnityEngine.Serialization;
 
 public class EnemySpawner : MonoBehaviour
 {
+    private const string PrototypeSceneName = "Chapter1_Node1_Prototype";
+
+    bool _prototypeWon;
+
+    bool IsChapter1Node1PrototypeScene =>
+        gameObject.scene.IsValid() &&
+        string.Equals(gameObject.scene.name, PrototypeSceneName, System.StringComparison.Ordinal);
+
     [Header("Pool Key")]
-    public string normalEnemyKey = "Enemy_Basic";
-    public string fastEnemyKey = "Enemy_Fast";
-    public string tankEnemyKey = "Enemy_Tank";
-    public string shieldEnemyKey = "Enemy_Shield";
+    // Baseline: Bug enemies only. Keep field names to avoid breaking Inspector serialization.
+    public string normalEnemyKey = "Enemy_Bug_Grunt";
+    public string fastEnemyKey = "Enemy_Bug_Runner";
+    public string tankEnemyKey = "Enemy_Bug_Shield";
+    public string shieldEnemyKey = "Enemy_Bug_Shield";
+
+    [Header("Bug Chapter 1 test (safe opt-in)")]
+    [Tooltip("If enabled, Wave 1 spawns a controlled mix: 3 Bug Grunt, 2 Bug Runner, 1 Bug Shield, then basics. Does not affect later waves.")]
+    public bool enableBugChapter1TestWave = false;
+    public string bugGruntKey = "Enemy_Bug_Grunt";
+    public string bugRunnerKey = "Enemy_Bug_Runner";
+    public string bugShieldKey = "Enemy_Bug_Shield";
 
     [Header("References")]
     public Transform spawnPoint;
@@ -77,6 +93,9 @@ public class EnemySpawner : MonoBehaviour
         if (_nightSequenceActive)
             return;
 
+        if (IsChapter1Node1PrototypeScene && _prototypeWon)
+            return;
+
         if (isWaitingForNextWave)
         {
             waveTimer -= Time.deltaTime;
@@ -121,6 +140,19 @@ public class EnemySpawner : MonoBehaviour
         {
             if (FindObjectsOfType<Enemy>().Length == 0)
             {
+                if (IsChapter1Node1PrototypeScene && currentWave >= 8)
+                {
+                    _prototypeWon = true;
+                    isWaitingForNextWave = false;
+                    waveTimer = 0f;
+                    waveDisplayCountdownRemaining = 0f;
+#if UNITY_EDITOR
+                    Debug.Log("[Prototype] Chapter1_Node1_Prototype WIN: wave 8 complete and no active enemies remain.");
+#endif
+                    Time.timeScale = 0f;
+                    return;
+                }
+
                 StartNextWaveCountdown();
             }
         }
@@ -131,6 +163,9 @@ public class EnemySpawner : MonoBehaviour
     /// </summary>
     private void TryScheduleNextWave()
     {
+        if (IsChapter1Node1PrototypeScene && currentWave >= 8)
+            return;
+
         int nextWave = currentWave + 1;
         bool useGate = WaveManager.IsNightWaveIndex(nextWave) &&
                        (nightLeadInSeconds > 0.01f || requireConfirmationForNightWave);
@@ -171,8 +206,11 @@ public class EnemySpawner : MonoBehaviour
 
     private void StartWave()
     {
+        if (IsChapter1Node1PrototypeScene && currentWave >= 8)
+            return;
+
         currentWave++;
-        enemiesToSpawn = baseEnemyCount + (currentWave - 1) * enemyIncreasePerWave;
+        enemiesToSpawn = GetEnemiesToSpawnForWave(currentWave);
         enemiesSpawnedThisWave = 0;
         spawnTimer = 0f;
 
@@ -187,11 +225,41 @@ public class EnemySpawner : MonoBehaviour
 
         Enemy.SyncNightBuffsWithWaveManager();
 
+#if UNITY_EDITOR
+        Debug.Log($"[Wave] Wave {currentWave} started. Enemies={enemiesToSpawn}");
+#endif
         Debug.Log("Wave " + currentWave + " started. Enemies: " + enemiesToSpawn);
+    }
+
+    private int GetEnemiesToSpawnForWave(int waveIndex)
+    {
+        if (IsChapter1Node1PrototypeScene)
+        {
+            switch (waveIndex)
+            {
+                case 1: return 6;  // 6G
+                case 2: return 10; // 10G
+                case 3: return 10; // 6G + 4R
+                case 4: return 14; // 8G + 6R
+                case 5: return 18; // 10G + 8R
+                case 6: return 12; // 8G + 4S
+                case 7: return 14; // 8R + 6S
+                case 8: return 24; // 10G + 8R + 6S
+                default: return 0;
+            }
+        }
+
+        int count = baseEnemyCount + (waveIndex - 1) * enemyIncreasePerWave;
+        if (enableBugChapter1TestWave && waveIndex == 1)
+            count = Mathf.Max(count, 6);
+        return count;
     }
 
     private void StartNextWaveCountdown()
     {
+        if (IsChapter1Node1PrototypeScene && currentWave >= 8)
+            return;
+
         waveTimer = timeBetweenWaves;
         isWaitingForNextWave = true;
 
@@ -221,17 +289,32 @@ public class EnemySpawner : MonoBehaviour
         }
 
         Enemy enemy = enemyObj.GetComponent<Enemy>();
-        if (enemy != null)
+        if (enemy == null)
         {
-            GetWaveBonusesForKey(key, out float bonusHealth, out int bonusDamage);
-
-            enemy.Initialize(pathPoints, bonusHealth, bonusDamage);
-
-            if (WaveManager.IsNightWave)
-                enemy.ApplyNightBuff();
-            else
-                enemy.ResetNightBuff();
+            // Some prefabs may host Enemy-derived scripts on child roots; use a minimal fallback only when needed.
+            enemy = enemyObj.GetComponentInChildren<Enemy>(true);
         }
+
+        if (enemy == null)
+        {
+            Debug.LogError("[BugEnemy] No Enemy component found on spawned object key=" + key, enemyObj);
+            enemiesSpawnedThisWave++;
+            return;
+        }
+
+#if UNITY_EDITOR
+        Debug.Log($"[EnemySpawn] key={key} type={enemy.GetType().Name}");
+#endif
+        Debug.Log("[BugEnemy] Spawning enemy type: " + enemy.GetType().Name + " key=" + key, enemyObj);
+
+        GetWaveBonusesForKey(key, out float bonusHealth, out int bonusDamage);
+
+        enemy.Initialize(pathPoints, bonusHealth, bonusDamage);
+
+        if (WaveManager.IsNightWave)
+            enemy.ApplyNightBuff();
+        else
+            enemy.ResetNightBuff();
 
         enemiesSpawnedThisWave++;
     }
@@ -248,7 +331,7 @@ public class EnemySpawner : MonoBehaviour
             bonusHealth = wavesPassed * normalHealthPerWave;
             bonusDamageToBase = Mathf.FloorToInt(wavesPassed * normalDamagePerWave);
         }
-        else if (key == fastEnemyKey)
+        else if (key == fastEnemyKey || key == bugRunnerKey)
         {
             bonusHealth = wavesPassed * normalHealthPerWave * fastHealthMultiplier;
             bonusDamageToBase = Mathf.FloorToInt(wavesPassed * fastDamagePerWave);
@@ -270,48 +353,87 @@ public class EnemySpawner : MonoBehaviour
     /// </summary>
     private string GetEnemyKeyForSpawnIndex(int spawnIndexInWave)
     {
+        if (IsChapter1Node1PrototypeScene)
+            return GetPrototypeEnemyKeyForWave(currentWave, spawnIndexInWave);
+
         int w = currentWave;
 
+        if (enableBugChapter1TestWave && w == 1)
+        {
+            if (spawnIndexInWave < 3) return bugGruntKey;
+            if (spawnIndexInWave < 5) return bugRunnerKey;
+            if (spawnIndexInWave == 5) return bugShieldKey;
+            return normalEnemyKey;
+        }
+
+        // Baseline: keep the existing rhythm, but map archetypes onto Bug keys only.
+        // Normal -> Grunt, Fast -> Runner, Tank/Shield -> Bug_Shield.
         if (w >= 5)
         {
             if (spawnIndexInWave == 0)
-                return shieldEnemyKey;
+                return bugShieldKey;
             if (w % 2 == 0 && spawnIndexInWave == 4)
-                return shieldEnemyKey;
+                return bugShieldKey;
         }
 
         if (w <= 4)
-            return normalEnemyKey;
+            return bugGruntKey;
 
         if (w <= 7)
         {
             if (spawnIndexInWave % 5 == 4)
-                return fastEnemyKey;
-            return normalEnemyKey;
+                return bugRunnerKey;
+            return bugGruntKey;
         }
 
-        // Waves 8–11: fast mix-in; tanks only from wave 10 (later waves, still light).
         if (w <= 11)
         {
             switch (spawnIndexInWave % 7)
             {
                 case 2:
                 case 5:
-                    return fastEnemyKey;
+                    return bugRunnerKey;
                 case 6:
-                    return w >= 10 ? tankEnemyKey : normalEnemyKey;
+                    return bugShieldKey;
                 default:
-                    return normalEnemyKey;
+                    return bugGruntKey;
             }
         }
 
-        // Late waves: tanks stay a minority (~1 per 11 spawns); fast unchanged.
         int m = spawnIndexInWave % 11;
         if (m == 10)
-            return tankEnemyKey;
+            return bugShieldKey;
         if (m == 1 || m == 4 || m == 6)
-            return fastEnemyKey;
-        return normalEnemyKey;
+            return bugRunnerKey;
+        return bugGruntKey;
+    }
+
+    private string GetPrototypeEnemyKeyForWave(int waveIndex, int spawnIndexInWave)
+    {
+        // Exact Chapter 1 Node 1 prototype pacing (8 waves), Bug enemies only.
+        switch (waveIndex)
+        {
+            case 1:
+                return bugGruntKey; // G x6
+            case 2:
+                return bugGruntKey; // G x10
+            case 3:
+                return spawnIndexInWave < 6 ? bugGruntKey : bugRunnerKey; // G x6, R x4
+            case 4:
+                return spawnIndexInWave < 8 ? bugGruntKey : bugRunnerKey; // G x8, R x6
+            case 5:
+                return spawnIndexInWave < 10 ? bugGruntKey : bugRunnerKey; // G x10, R x8
+            case 6:
+                return spawnIndexInWave < 8 ? bugGruntKey : bugShieldKey; // G x8, S x4
+            case 7:
+                return spawnIndexInWave < 8 ? bugRunnerKey : bugShieldKey; // R x8, S x6
+            case 8:
+                if (spawnIndexInWave < 10) return bugGruntKey; // G x10
+                if (spawnIndexInWave < 18) return bugRunnerKey; // R x8
+                return bugShieldKey; // S x6
+            default:
+                return bugGruntKey;
+        }
     }
 
     public int GetCurrentWave()

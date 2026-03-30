@@ -41,7 +41,7 @@ public class PoolManager : MonoBehaviour
         }
 
         obj.transform.position = position;
-        obj.transform.rotation = rotation;
+        obj.transform.rotation = QuaternionUtil.NormalizeOrIdentity(rotation);
         return obj;
     }
 

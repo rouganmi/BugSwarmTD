@@ -115,7 +115,7 @@ public class TowerBuilder : MonoBehaviour
         }
 
         Vector3 buildPosition = spot.transform.position + spot.transform.up * previewYOffset;
-        Quaternion buildRotation = spot.transform.rotation;
+        Quaternion buildRotation = QuaternionUtil.NormalizeOrIdentity(spot.transform.rotation);
 
         GameObject towerObj = Instantiate(prefab, buildPosition, buildRotation);
         if (towerObj == null)
@@ -134,6 +134,9 @@ public class TowerBuilder : MonoBehaviour
                 hexCell.NotifyTowerPlaced(tower);
         }
 
+#if UNITY_EDITOR
+        Debug.Log($"[TowerBuild] Placed tower prefab={prefab.name} spot={spot.name} pos={buildPosition}");
+#endif
         Debug.Log($"[TowerBuilder] Build success at position={buildPosition}");
 
         if (currentPreview != null)
@@ -177,7 +180,7 @@ public class TowerBuilder : MonoBehaviour
                 currentPreview.SetActive(true);
 
                 Vector3 previewPosition = spot.transform.position + spot.transform.up * previewYOffset;
-                Quaternion previewRotation = spot.transform.rotation;
+                Quaternion previewRotation = QuaternionUtil.NormalizeOrIdentity(spot.transform.rotation);
                 currentPreview.transform.SetPositionAndRotation(previewPosition, previewRotation);
 
                 bool hasFunds = currencySystem != null && currencySystem.HasEnoughGold(towerCost);

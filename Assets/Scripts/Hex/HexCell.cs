@@ -340,6 +340,9 @@ public class HexCell : MonoBehaviour
         }
 
         ui.OpenForSpot(_buildSpot);
+#if UNITY_EDITOR
+        Debug.Log($"[HexCell] Forwarded click to BuildSpot cell={_gridX},{_gridY} spot={_buildSpot.name}");
+#endif
         Debug.Log($"[HexBuild] Open build menu at {_gridX},{_gridY}");
         // 悬停高亮由 HexGridManager.UpdateHexHover 每帧维护，不再在点击后锁定 SelectCell。
     }

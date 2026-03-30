@@ -1,0 +1,11 @@
+Chapter1_Node1 presentation wrapper (minimal)
+
+- Runtime entry remains Assets/Scenes/Main.unity (see ProjectSettings/EditorBuildSettings.asset).
+- Win (victory) source: EnemySpawner Node1 win branch (wave 8 complete + no active enemies).
+- Lose (defeat) source: BaseHealth reaches 0.
+- Presentation layer: Chapter1Node1FlowController (runtime-created) shows:
+  - Intro prompt once on load (pauses time until Start)
+  - Victory prompt when GameEvents.OnVictory fires
+  - Defeat prompt when GameEvents.OnGameOver fires
+- Metadata: ChapterNodeMetadata is presentation-only (does not affect waves/stats/economy).
+

@@ -4,9 +4,14 @@ using UnityEngine;
 public class Bullet : MonoBehaviour, IPoolable
 {
     private const string HitEffectPoolKey = "Effect_Hit";
+    private const string PrototypeSceneName = "Chapter1_Node1_Prototype";
     const float PierceSweepRadius = 0.65f;
     public float speed = 10f;
     public float damage = 1f;
+
+    [Header("Prototype-only (role separation)")]
+    [Tooltip("Prototype scene only: multiplier applied when hitting BugEnemy_Shield. Set by Tower when firing.")]
+    public float prototypeBugShieldDamageMultiplier = 1f;
 
     [HideInInspector] public float splashRadius;
     [HideInInspector] public float splashDamage;
@@ -202,7 +207,11 @@ public class Bullet : MonoBehaviour, IPoolable
         );
 
         if (_aoeControlActive && _aoeSpinVisual != null)
-            _aoeSpinVisual.Rotate(_aoeSpinEulerPerSec * Time.deltaTime, Space.Self);
+        {
+            // Rotate() can accumulate float drift; non-unit quaternions trigger QuaternionToEuler when UI touches transforms.
+            Quaternion delta = Quaternion.Euler(_aoeSpinEulerPerSec * Time.deltaTime);
+            _aoeSpinVisual.localRotation = (delta * _aoeSpinVisual.localRotation).normalized;
+        }
 
         if (Vector3.Distance(transform.position, target.transform.position) < 0.15f)
             HitTarget();
@@ -317,6 +326,8 @@ public class Bullet : MonoBehaviour, IPoolable
 
         float mult = dTower <= _sniperEffectiveRange ? 1f : 0.2f;
         float amount = _sniperBaseDamage * mult;
+        if (IsPrototypeScene() && e.GetComponent<BugEnemy_Shield>() != null)
+            amount *= prototypeBugShieldDamageMultiplier;
 
         Debug.Log($"[SniperRoute] Pierce contact with enemy={e.gameObject.name}");
         Debug.Log($"[SniperRoute] Pierce apply damage enemy={e.gameObject.name} amount={amount:0.##}");
@@ -342,7 +353,10 @@ public class Bullet : MonoBehaviour, IPoolable
         if (target != null)
         {
             hitPos = target.transform.position;
-            target.TakeDamage(damage);
+            float amount = damage;
+            if (IsPrototypeScene() && target.GetComponent<BugEnemy_Shield>() != null)
+                amount *= prototypeBugShieldDamageMultiplier;
+            target.TakeDamage(amount);
             if (controlSlowDuration > 0.01f && controlSlowMultiplier < 1f)
                 target.ApplyControlSlow(controlSlowMultiplier, controlSlowDuration);
         }
@@ -424,10 +438,17 @@ public class Bullet : MonoBehaviour, IPoolable
         _aoeControlActive = false;
         _aoeSpinVisual = null;
         hitFxScale = 1f;
+        prototypeBugShieldDamageMultiplier = 1f;
         ApplyPoolDefaultRootScale();
         if (_sniperHitIds != null)
             _sniperHitIds.Clear();
         PoolManager.Instance.Despawn(gameObject);
+    }
+
+    bool IsPrototypeScene()
+    {
+        return gameObject.scene.IsValid() &&
+               string.Equals(gameObject.scene.name, PrototypeSceneName, System.StringComparison.Ordinal);
     }
 
     public void OnSpawn()
