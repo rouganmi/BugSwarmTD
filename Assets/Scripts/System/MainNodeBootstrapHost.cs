@@ -22,14 +22,33 @@ public class MainNodeBootstrapHost : MonoBehaviour
         if (ctx == null)
             return;
 
-        bool ok = ctx.SetCurrentByKey(defaultChapterId, defaultNodeId);
-        if (ok)
+        // Prefer an already-present explicit current node if it's valid in NodeRegistry.
+        NodeRegistry.EnsureInitialized();
+        string chapterId = defaultChapterId;
+        string nodeId = defaultNodeId;
+
+        if (!string.IsNullOrWhiteSpace(ctx.currentChapterId) &&
+            !string.IsNullOrWhiteSpace(ctx.currentNodeId) &&
+            NodeRegistry.TryGet(ctx.currentChapterId, ctx.currentNodeId, out var _))
         {
-            Debug.Log($"[NodeContext] Explicit default set: {defaultChapterId}:{defaultNodeId}", this);
-            Chapter1Node1FlowController.EnsurePresentForCurrentContext();
+            chapterId = ctx.currentChapterId;
+            nodeId = ctx.currentNodeId;
+            Debug.Log($"[NodeContext] Bootstrap source=explicit current {chapterId}:{nodeId}", this);
         }
         else
-            Debug.LogWarning($"[NodeContext] Failed to set default: {defaultChapterId}:{defaultNodeId}", this);
+        {
+            Debug.Log($"[NodeContext] Bootstrap source=inspector default {chapterId}:{nodeId}", this);
+        }
+
+        bool ok = ctx.SetCurrentByKey(chapterId, nodeId);
+        if (ok)
+        {
+            Debug.Log($"[NodeContext] Explicit current set: {chapterId}:{nodeId}", this);
+            Chapter1Node1FlowController.EnsurePresentForCurrentContext();
+            Chapter1Node2FlowController.EnsurePresentForCurrentContext();
+        }
+        else
+            Debug.LogWarning($"[NodeContext] Failed to set current: {chapterId}:{nodeId}", this);
     }
 }
 

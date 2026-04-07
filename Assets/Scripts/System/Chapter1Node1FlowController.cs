@@ -34,6 +34,7 @@ public class Chapter1Node1FlowController : MonoBehaviour
     private TMP_Text _resultPrimaryLabel;
     private Button _resultSecondaryButton;
     private TMP_Text _resultSecondaryLabel;
+    private bool _isInvalidForReuse;
 
     private static bool IsTargetNode1(NodeDefinition def) =>
         def != null &&
@@ -150,8 +151,39 @@ public class Chapter1Node1FlowController : MonoBehaviour
         }
 
         FlowDupLog("EnsurePresent.preFindExisting");
-        if (Object.FindObjectOfType<Chapter1Node1FlowController>() != null)
-            return;
+        // DDOL-safe de-dupe: FindObjectOfType/FindObjectsOfType may not see DontDestroyOnLoad instances in this project chain.
+        // Use Resources.FindObjectsOfTypeAll to cover DDOL and prevent creating duplicate flows after Retry.
+        var existingAll = Resources.FindObjectsOfTypeAll<Chapter1Node1FlowController>();
+        if (existingAll != null)
+        {
+            for (int i = 0; i < existingAll.Length; i++)
+            {
+                var e = existingAll[i];
+                if (e == null) continue;
+                if (e._isInvalidForReuse)
+                {
+                    Debug.Log("[FlowDupCheck] EnsurePresent.ignoreExisting invalidForReuse");
+                    continue;
+                }
+                var existingGo = e.gameObject;
+                if (existingGo == null) continue;
+                var existingScene = existingGo.scene;
+                if (!existingScene.IsValid())
+                {
+                    Debug.Log($"[FlowDupCheck] EnsurePresent.ignoreExisting scene=<invalid> name={existingGo.name} id={e.GetInstanceID()}");
+                    continue;
+                }
+
+                bool isDdol = string.Equals(existingScene.name, "DontDestroyOnLoad", System.StringComparison.Ordinal);
+                if (!isDdol && !existingScene.isLoaded)
+                {
+                    Debug.Log($"[FlowDupCheck] EnsurePresent.ignoreExisting sceneNotLoaded name={existingGo.name} id={e.GetInstanceID()} scene={existingScene.name}");
+                    continue;
+                }
+
+                return;
+            }
+        }
 
         FlowDupLog("EnsurePresent.preCreate");
         var go = new GameObject("Chapter1_Node1_Flow");
@@ -472,6 +504,7 @@ public class Chapter1Node1FlowController : MonoBehaviour
 
     private void ContinueToNextNode()
     {
+        Debug.Log("[FlowDupCheck] ContinueToNextNode.enter");
         string chapterId = _ctx != null ? _ctx.currentChapterId : (_def != null ? _def.chapterId : "Chapter1");
         string nextNodeId = _ctx != null ? _ctx.nextNodeId : (_def != null ? _def.nextNodeId : "Node2");
 
@@ -481,14 +514,17 @@ public class Chapter1Node1FlowController : MonoBehaviour
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(next.runtimeSceneName) || !Application.CanStreamedLevelBeLoaded(next.runtimeSceneName))
+        var ctx = _ctx != null ? _ctx : (RuntimeNodeContext.Instance != null ? RuntimeNodeContext.Instance : FindObjectOfType<RuntimeNodeContext>());
+        if (ctx == null || !ctx.SetCurrentByKey(chapterId, nextNodeId))
         {
-            ShowContinuePlaceholder($"{next.displayName} is not playable yet.");
+            ShowContinuePlaceholder("Failed to set next node.");
             return;
         }
 
+        _isInvalidForReuse = true;
+        Debug.Log("[FlowDupCheck] ContinueToNextNode.marked invalidForReuse");
         Time.timeScale = 1f;
-        SceneManager.LoadScene(next.runtimeSceneName);
+        SceneManager.LoadScene("Main");
     }
 
     private void ShowContinuePlaceholder(string message)
