@@ -2797,6 +2797,7 @@ GameObject:
   m_Component:
   - component: {fileID: 873898918}
   - component: {fileID: 873898917}
+  - component: {fileID: 1999999999}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -2843,6 +2844,20 @@ MonoBehaviour:
   tankDamagePerWave: 0.42
   nightLeadInSeconds: 0
   requireConfirmationForNightWave: 0
+--- !u!114 &1999999999
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 873898916}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb60b1aee19e6a44484acb61d2941de5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  defaultChapterId: Chapter1
+  defaultNodeId: Node1
 --- !u!4 &873898918
 Transform:
   m_ObjectHideFlags: 0

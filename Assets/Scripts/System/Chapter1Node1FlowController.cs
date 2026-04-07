@@ -35,53 +35,209 @@ public class Chapter1Node1FlowController : MonoBehaviour
     private Button _resultSecondaryButton;
     private TMP_Text _resultSecondaryLabel;
 
-    private bool IsTargetScene(string sceneName) =>
-        string.Equals(sceneName, PrototypeSceneName, System.StringComparison.Ordinal) ||
-        (NodeRegistry.TryGetByScene(sceneName, out var d) && d != null);
+    private static bool IsTargetNode1(NodeDefinition def) =>
+        def != null &&
+        string.Equals(def.chapterId, "Chapter1", System.StringComparison.Ordinal) &&
+        string.Equals(def.nodeId, "Node1", System.StringComparison.Ordinal);
+
+    private bool IsTargetSceneFallback(string sceneName, out NodeDefinition def)
+    {
+        def = null;
+        if (string.Equals(sceneName, PrototypeSceneName, System.StringComparison.Ordinal))
+        {
+            // Compatibility: Prototype scene implies Node1.
+            return true;
+        }
+
+        if (NodeRegistry.TryGetByScene(sceneName, out var d) && IsTargetNode1(d))
+        {
+            def = d;
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryGetTargetNode1FromContext(out RuntimeNodeContext ctx, out NodeDefinition def)
+    {
+        ctx = RuntimeNodeContext.Instance != null ? RuntimeNodeContext.Instance : Object.FindObjectOfType<RuntimeNodeContext>();
+        def = ctx != null ? ctx.CurrentDefinition : null;
+        return IsTargetNode1(def);
+    }
+
+    private static void FlowDupLog(string where, Chapter1Node1FlowController self = null)
+    {
+        string activeScene = SceneManager.GetActiveScene().IsValid() ? SceneManager.GetActiveScene().name : "<invalid>";
+        string selfName = self != null ? self.gameObject.name : "<static>";
+        int selfId = self != null ? self.GetInstanceID() : 0;
+        string selfScene = self != null ? (self.gameObject.scene.IsValid() ? self.gameObject.scene.name : "<invalid>") : "<n/a>";
+
+        var first = Object.FindObjectOfType<Chapter1Node1FlowController>();
+        string firstStr = first == null ? "null" : $"{first.gameObject.name}#{first.GetInstanceID()} scene={first.gameObject.scene.name}";
+
+        var loaded = Object.FindObjectsOfType<Chapter1Node1FlowController>();
+        int loadedCount = loaded != null ? loaded.Length : 0;
+
+        var all = Resources.FindObjectsOfTypeAll<Chapter1Node1FlowController>();
+        int allCount = all != null ? all.Length : 0;
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(512);
+        sb.Append("[FlowDupCheck] ")
+          .Append(where)
+          .Append(" activeScene=").Append(activeScene)
+          .Append(" self=").Append(selfName).Append("#").Append(selfId)
+          .Append(" selfScene=").Append(selfScene)
+          .Append(" FindObjectOfType=").Append(firstStr)
+          .Append(" FindObjectsOfType.Count=").Append(loadedCount)
+          .Append(" FindObjectsOfTypeAll.Count=").Append(allCount);
+
+        if (allCount > 0)
+        {
+            sb.Append(" all=[");
+            for (int i = 0; i < allCount; i++)
+            {
+                var c = all[i];
+                if (c == null) continue;
+                if (i > 0) sb.Append(" | ");
+                string sc = c.gameObject.scene.IsValid() ? c.gameObject.scene.name : "<invalid>";
+                sb.Append(c.gameObject.name).Append("#").Append(c.GetInstanceID()).Append(" scene=").Append(sc);
+            }
+            sb.Append("]");
+        }
+
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>
+    /// Safe public entry: re-check whether the Node1 flow should exist for the current Context/scene.
+    /// Intended for cases where Context is explicitly set after the first auto-check.
+    /// </summary>
+    public static void EnsurePresentForCurrentContext()
+    {
+        FlowDupLog("EnsurePresentForCurrentContext.enter");
+        EnsurePresent();
+    }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void EnsurePresent()
     {
+        FlowDupLog("EnsurePresent.enter");
         var s = SceneManager.GetActiveScene();
         if (!s.IsValid())
             return;
-        if (!string.Equals(s.name, PrototypeSceneName, System.StringComparison.Ordinal) &&
-            !NodeRegistry.TryGetByScene(s.name, out _))
-            return;
 
+        // Primary: explicit runtime truth source (Context).
+        var ctx = RuntimeNodeContext.Instance != null ? RuntimeNodeContext.Instance : Object.FindObjectOfType<RuntimeNodeContext>();
+        var ctxDef = ctx != null ? ctx.CurrentDefinition : null;
+        bool ctxIsNode1 = ctxDef != null &&
+                          string.Equals(ctxDef.chapterId, "Chapter1", System.StringComparison.Ordinal) &&
+                          string.Equals(ctxDef.nodeId, "Node1", System.StringComparison.Ordinal);
+
+        // Fallback: legacy scene-name based resolution (only when Context is missing or empty).
+        if (!ctxIsNode1)
+        {
+            if (ctx != null && ctxDef != null)
+                return;
+
+            NodeRegistry.EnsureInitialized();
+            bool legacyOk = string.Equals(s.name, PrototypeSceneName, System.StringComparison.Ordinal) ||
+                            (NodeRegistry.TryGetByScene(s.name, out var legacyDef) &&
+                             legacyDef != null &&
+                             string.Equals(legacyDef.chapterId, "Chapter1", System.StringComparison.Ordinal) &&
+                             string.Equals(legacyDef.nodeId, "Node1", System.StringComparison.Ordinal));
+            if (!legacyOk)
+                return;
+        }
+
+        FlowDupLog("EnsurePresent.preFindExisting");
         if (Object.FindObjectOfType<Chapter1Node1FlowController>() != null)
             return;
 
+        FlowDupLog("EnsurePresent.preCreate");
         var go = new GameObject("Chapter1_Node1_Flow");
         go.hideFlags = HideFlags.DontSave;
         Object.DontDestroyOnLoad(go);
-        go.AddComponent<Chapter1Node1FlowController>();
+        var c = go.AddComponent<Chapter1Node1FlowController>();
+        FlowDupLog("EnsurePresent.postCreate", c);
     }
 
     private void Awake()
     {
-        var s = SceneManager.GetActiveScene();
-        if (!IsTargetScene(s.name))
+        FlowDupLog("Awake.enter", this);
+        // Single-instance guard: prevent duplicates after scene reload / Retry back to Main.
+        FlowDupLog("Awake.preSingleInstanceGuard", this);
+        var all = FindObjectsOfType<Chapter1Node1FlowController>();
+        if (all != null && all.Length > 1)
         {
-            Destroy(gameObject);
-            return;
-        }
+            FlowDupLog("Awake.guard.detectedMultiple", this);
+            Chapter1Node1FlowController keep = null;
+            int keepId = int.MaxValue;
+            for (int i = 0; i < all.Length; i++)
+            {
+                var c = all[i];
+                if (c == null) continue;
+                int id = c.GetInstanceID();
+                if (id < keepId)
+                {
+                    keepId = id;
+                    keep = c;
+                }
+            }
 
-        NodeRegistry.EnsureInitialized();
-        _ctx = RuntimeNodeContext.Instance != null ? RuntimeNodeContext.Instance : Object.FindObjectOfType<RuntimeNodeContext>();
-        if (!NodeRegistry.TryGetByScene(s.name, out _def))
+            if (keep != null && keep != this)
+            {
+                FlowDupLog("Awake.guard.destroySelf", this);
+                Destroy(gameObject);
+                return;
+            }
+
+            for (int i = 0; i < all.Length; i++)
+            {
+                var c = all[i];
+                if (c == null || c == this) continue;
+                FlowDupLog("Awake.guard.destroyOther", this);
+                Destroy(c.gameObject);
+            }
+        }
+        FlowDupLog("Awake.postSingleInstanceGuard", this);
+
+        var s = SceneManager.GetActiveScene();
+        // Primary: Context is the truth source.
+        if (TryGetTargetNode1FromContext(out _ctx, out _def))
         {
-            // Fallback to prior Node1 metadata defaults if registry lookup fails for any reason.
-            if (metadata == null)
-                metadata = new ChapterNodeMetadata();
+            // Keep _def from Context. Do not override Context here.
         }
         else
         {
-            if (_ctx != null) _ctx.SetCurrent(_def);
+            // If Context exists and is explicitly NOT Node1, this flow should not run.
+            if (_ctx != null && _ctx.CurrentDefinition != null)
+            {
+                FlowDupLog("Awake.destroyNotTargetNode1", this);
+                Destroy(gameObject);
+                return;
+            }
+
+            // Fallback: legacy scene-name based resolution (only when Context is missing or empty).
+            NodeRegistry.EnsureInitialized();
+            if (!IsTargetSceneFallback(s.name, out var legacyDef))
+            {
+                FlowDupLog("Awake.destroyFallbackNotMatched", this);
+                Destroy(gameObject);
+                return;
+            }
+
+            _def = legacyDef;
+            if (_def == null && metadata == null)
+                metadata = new ChapterNodeMetadata();
         }
 
         // Minimal formal start prompt: pause until player acknowledges (keeps gameplay chain untouched).
         Time.timeScale = 0f;
+    }
+
+    private void OnDestroy()
+    {
+        FlowDupLog("OnDestroy", this);
     }
 
     private void OnEnable()
@@ -106,10 +262,28 @@ public class Chapter1Node1FlowController : MonoBehaviour
 
     private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        if (!IsTargetScene(scene.name))
+        // Primary: Context is the truth source.
+        if (TryGetTargetNode1FromContext(out _ctx, out _def))
         {
-            Destroy(gameObject);
-            return;
+            // ok
+        }
+        else
+        {
+            // If Context exists and is explicitly NOT Node1, this flow should not run.
+            if (_ctx != null && _ctx.CurrentDefinition != null)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            // Fallback: legacy scene-name based resolution (only when Context is missing or empty).
+            NodeRegistry.EnsureInitialized();
+            if (!IsTargetSceneFallback(scene.name, out var legacyDef))
+            {
+                Destroy(gameObject);
+                return;
+            }
+            _def = legacyDef;
         }
 
         // Rebind UI in case the canvas was recreated.
@@ -117,8 +291,6 @@ public class Chapter1Node1FlowController : MonoBehaviour
         _baseHealth = FindObjectOfType<BaseHealth>();
         _enemySpawner = FindObjectOfType<EnemySpawner>();
         if (_ctx == null) _ctx = RuntimeNodeContext.Instance != null ? RuntimeNodeContext.Instance : Object.FindObjectOfType<RuntimeNodeContext>();
-        NodeRegistry.TryGetByScene(scene.name, out _def);
-        if (_ctx != null && _def != null) _ctx.SetCurrent(_def);
         _introRoot = null;
         _resultRoot = null;
         BuildUiIfNeeded();
@@ -145,16 +317,46 @@ public class Chapter1Node1FlowController : MonoBehaviour
             return;
         }
 
-        // Victory: observe the validated prototype condition without coupling to EnemySpawner events.
-        // Use Time.timeScale == 0 as a guard to avoid false positives at the start of wave 8 before any spawns.
-        int expectedFinalWave = _def != null ? _def.expectedFinalWave : 8;
-        if (_enemySpawner != null &&
-            _enemySpawner.GetCurrentWave() >= expectedFinalWave &&
-            FindObjectsOfType<Enemy>().Length == 0 &&
-            (Time.timeScale <= 0f || _enemySpawner.IsWaitingForNextWave()))
-        {
+        if (ShouldCompleteNode1())
             HandleVictory();
-        }
+    }
+
+    private bool ShouldCompleteNode1()
+    {
+        if (_state == NodeFlowState.Victory || _state == NodeFlowState.Defeat)
+            return false;
+
+        // Context must explicitly be Chapter1:Node1 (single conclusion layer).
+        var ctxDef = _ctx != null ? _ctx.CurrentDefinition : null;
+        if (!IsTargetNode1(ctxDef))
+            return false;
+
+        if (_baseHealth != null && _baseHealth.GetCurrentHealth() <= 0)
+            return false;
+
+        if (_enemySpawner == null)
+            return false;
+
+        // Execution facts (no victory semantics).
+        int wave = _enemySpawner.GetCurrentWave();
+        bool waiting = _enemySpawner.IsWaitingForNextWave();
+        bool hasMore = _enemySpawner.HasMoreConfiguredWaves;
+
+        if (wave <= 0)
+            return false;
+
+        // Node1 completion is based on reaching the target final wave (not on spawner "no more configured waves").
+        int targetFinalWave = 8;
+        if (wave < targetFinalWave)
+            return false;
+
+        if (FindObjectsOfType<Enemy>().Length != 0)
+            return false;
+
+        // Read-only facts kept for debugging/telemetry parity; not part of the completion gate.
+        _ = waiting;
+        _ = hasMore;
+        return true;
     }
 
     private void ShowIntro()
@@ -265,8 +467,7 @@ public class Chapter1Node1FlowController : MonoBehaviour
     private void Retry()
     {
         Time.timeScale = 1f;
-        var s = SceneManager.GetActiveScene();
-        SceneManager.LoadScene(s.name);
+        SceneManager.LoadScene("Main");
     }
 
     private void ContinueToNextNode()

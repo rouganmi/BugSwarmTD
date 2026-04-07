@@ -71,12 +71,15 @@ public static class NodeRegistry
 
     public static bool TryGet(string chapterId, string nodeId, out NodeDefinition def)
     {
+        // Primary query path: chapterId/nodeId is the canonical node identity.
         EnsureInitialized();
         return Nodes.TryGetValue(MakeKey(chapterId, nodeId), out def);
     }
 
     public static bool TryGetByScene(string sceneName, out NodeDefinition def)
     {
+        // Compatibility query path: sceneName -> runtimeSceneName reverse lookup.
+        // Keep this for legacy flows, but do not treat it as the canonical identity source.
         EnsureInitialized();
         def = null;
         if (string.IsNullOrEmpty(sceneName)) return false;

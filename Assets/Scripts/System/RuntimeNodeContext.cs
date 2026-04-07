@@ -13,6 +13,10 @@ public class RuntimeNodeContext : MonoBehaviour
 
     public NodeDefinition CurrentDefinition { get; private set; }
 
+    // True when currentChapterId/currentNodeId was explicitly set via SetCurrentByKey.
+    // When true, scene-loaded fallback should not overwrite the explicit truth source.
+    [SerializeField] private bool hasExplicitCurrentNode;
+
     public void SetCurrent(NodeDefinition def)
     {
         CurrentDefinition = def;
@@ -29,6 +33,21 @@ public class RuntimeNodeContext : MonoBehaviour
         currentNodeId = def.nodeId;
         nextNodeId = def.nextNodeId;
         currentSceneName = SceneManager.GetActiveScene().name;
+    }
+
+    /// <summary>
+    /// Canonical entry: explicitly set current node by chapterId/nodeId.
+    /// This becomes the runtime truth source and will not be overwritten by scene-name fallback refresh.
+    /// </summary>
+    public bool SetCurrentByKey(string chapterId, string nodeId)
+    {
+        NodeRegistry.EnsureInitialized();
+        if (!NodeRegistry.TryGet(chapterId, nodeId, out var def) || def == null)
+            return false;
+
+        hasExplicitCurrentNode = true;
+        SetCurrent(def);
+        return true;
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -77,10 +96,17 @@ public class RuntimeNodeContext : MonoBehaviour
     private void RefreshFromScene(Scene scene)
     {
         currentSceneName = scene.name;
+        // Compatibility fallback only: do not overwrite an explicit current node.
+        if (hasExplicitCurrentNode)
+            return;
+
         if (NodeRegistry.TryGetByScene(scene.name, out var def))
+        {
             SetCurrent(def);
-        else
-            SetCurrent(null);
+            return;
+        }
+
+        SetCurrent(null);
     }
 }
 

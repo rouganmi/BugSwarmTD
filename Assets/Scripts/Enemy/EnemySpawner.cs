@@ -6,8 +6,6 @@ public class EnemySpawner : MonoBehaviour
 {
     private const string PrototypeSceneName = "Chapter1_Node1_Prototype";
 
-    bool _prototypeWon;
-
     bool IsChapter1Node1PrototypeScene =>
         gameObject.scene.IsValid() &&
         string.Equals(gameObject.scene.name, PrototypeSceneName, System.StringComparison.Ordinal);
@@ -82,6 +80,13 @@ public class EnemySpawner : MonoBehaviour
 
     private bool _nightSequenceActive;
     private bool _nightStartConfirmed;
+    private bool _noMoreWavesConfigured;
+
+    /// <summary>
+    /// Pure execution fact: true when the spawner still has configured waves to start.
+    /// This is not a win/lose signal.
+    /// </summary>
+    public bool HasMoreConfiguredWaves => !_noMoreWavesConfigured;
 
     private void Start()
     {
@@ -93,7 +98,7 @@ public class EnemySpawner : MonoBehaviour
         if (_nightSequenceActive)
             return;
 
-        if (IsChapter1Node1PrototypeScene && _prototypeWon)
+        if (_noMoreWavesConfigured)
             return;
 
         if (isWaitingForNextWave)
@@ -140,19 +145,6 @@ public class EnemySpawner : MonoBehaviour
         {
             if (FindObjectsOfType<Enemy>().Length == 0)
             {
-                if (IsChapter1Node1PrototypeScene && currentWave >= 8)
-                {
-                    _prototypeWon = true;
-                    isWaitingForNextWave = false;
-                    waveTimer = 0f;
-                    waveDisplayCountdownRemaining = 0f;
-#if UNITY_EDITOR
-                    Debug.Log("[Prototype] Chapter1_Node1_Prototype WIN: wave 8 complete and no active enemies remain.");
-#endif
-                    Time.timeScale = 0f;
-                    return;
-                }
-
                 StartNextWaveCountdown();
             }
         }
@@ -163,10 +155,22 @@ public class EnemySpawner : MonoBehaviour
     /// </summary>
     private void TryScheduleNextWave()
     {
-        if (IsChapter1Node1PrototypeScene && currentWave >= 8)
+        if (_noMoreWavesConfigured)
             return;
 
         int nextWave = currentWave + 1;
+        int nextCount = GetEnemiesToSpawnForWave(nextWave);
+        if (nextCount <= 0)
+        {
+            _noMoreWavesConfigured = true;
+            isWaitingForNextWave = false;
+            isSpawningWave = false;
+            waveTimer = 0f;
+            waveDisplayCountdownRemaining = 0f;
+            Debug.Log("[Wave] No more configured waves; spawner idle.");
+            return;
+        }
+
         bool useGate = WaveManager.IsNightWaveIndex(nextWave) &&
                        (nightLeadInSeconds > 0.01f || requireConfirmationForNightWave);
 
@@ -206,11 +210,21 @@ public class EnemySpawner : MonoBehaviour
 
     private void StartWave()
     {
-        if (IsChapter1Node1PrototypeScene && currentWave >= 8)
+        if (_noMoreWavesConfigured)
             return;
 
         currentWave++;
         enemiesToSpawn = GetEnemiesToSpawnForWave(currentWave);
+        if (enemiesToSpawn <= 0)
+        {
+            _noMoreWavesConfigured = true;
+            isSpawningWave = false;
+            isWaitingForNextWave = false;
+            waveTimer = 0f;
+            waveDisplayCountdownRemaining = 0f;
+            Debug.Log("[Wave] No more configured waves; spawner idle.");
+            return;
+        }
         enemiesSpawnedThisWave = 0;
         spawnTimer = 0f;
 
@@ -257,7 +271,7 @@ public class EnemySpawner : MonoBehaviour
 
     private void StartNextWaveCountdown()
     {
-        if (IsChapter1Node1PrototypeScene && currentWave >= 8)
+        if (_noMoreWavesConfigured)
             return;
 
         waveTimer = timeBetweenWaves;
