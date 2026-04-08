@@ -106,28 +106,18 @@ public class EnemySelectionController : MonoBehaviour
             Tower tower = h.collider.GetComponent<Tower>()
                 ?? h.collider.GetComponentInParent<Tower>()
                 ?? h.collider.GetComponentInChildren<Tower>();
-            BuildSpot spot = null;
+            BuildSpot spot = tower != null ? tower.OwningSpot : null;
 
-            if (tower != null)
-            {
-                spot = tower.GetComponentInParent<BuildSpot>();
-            }
-            else
+            if (tower == null)
             {
                 HexCell hex = h.collider.GetComponent<HexCell>()
                     ?? h.collider.GetComponentInParent<HexCell>()
                     ?? h.collider.GetComponentInChildren<HexCell>();
                 if (hex != null)
                 {
-                    spot = hex.GetTowerSocket();
-                    if (spot != null)
-                        tower = spot.GetCurrentTower();
-                }
-                else
-                {
-                    spot = h.collider.GetComponent<BuildSpot>() ?? h.collider.GetComponentInParent<BuildSpot>();
-                    if (spot != null)
-                        tower = spot.GetCurrentTower();
+                    tower = hex.GetPlacedTower();
+                    if (tower != null)
+                        spot = tower.OwningSpot;
                 }
             }
 

@@ -42,8 +42,10 @@ public class BuildPreviewController : MonoBehaviour
     private void OnGoldChanged(int _)
     {
         if (_instance == null || _hoveredOption == null || _spot == null) return;
-        bool affordable = currencySystem == null || currencySystem.HasEnoughGold(_hoveredOption.cost);
-        ApplyVisual(affordable);
+        if (!TryEvaluateCurrentHover(out var evaluation))
+            return;
+
+        ApplyVisual(evaluation.CanSubmit);
     }
 
     private void SyncMaterialsFromTowerBuilder()
@@ -63,12 +65,19 @@ public class BuildPreviewController : MonoBehaviour
     public void ShowHover(BuildTowerOption option)
     {
         Hide();
-        if (_spot == null || option == null || option.towerPrefab == null)
-            return;
-        if (!_spot.CanBuild())
+        if (_spot == null || option == null)
             return;
 
         _hoveredOption = option;
+
+        if (!TryEvaluateCurrentHover(out var evaluation))
+            return;
+
+        if (!evaluation.HasSpot || !evaluation.IsPrefabValid)
+            return;
+
+        if (!evaluation.IsTerrainBuildable || !evaluation.IsSpotBuildable)
+            return;
 
         float yOff = towerBuilder != null ? towerBuilder.PreviewYOffset : previewYOffset;
         Vector3 pos = _spot.transform.position + _spot.transform.up * yOff;
@@ -77,8 +86,7 @@ public class BuildPreviewController : MonoBehaviour
         _instance = Instantiate(option.towerPrefab, pos, rot);
         StripGameplay(_instance);
 
-        bool affordable = currencySystem == null || currencySystem.HasEnoughGold(option.cost);
-        ApplyVisual(affordable);
+        ApplyVisual(evaluation.CanSubmit);
     }
 
     public void Hide()
@@ -89,6 +97,21 @@ public class BuildPreviewController : MonoBehaviour
             Destroy(_instance);
             _instance = null;
         }
+    }
+
+    private bool TryEvaluateCurrentHover(out TowerBuilder.BuildSubmissionEvaluation evaluation)
+    {
+        if (towerBuilder == null) towerBuilder = FindObjectOfType<TowerBuilder>();
+        if (towerBuilder == null)
+        {
+            evaluation = default;
+            return false;
+        }
+
+        GameObject prefab = _hoveredOption != null ? _hoveredOption.towerPrefab : null;
+        int cost = _hoveredOption != null ? _hoveredOption.cost : -1;
+        evaluation = towerBuilder.EvaluateBuildRequest(_spot, prefab, cost);
+        return true;
     }
 
     private void ApplyVisual(bool affordable)

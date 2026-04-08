@@ -59,22 +59,17 @@ public class TowerSelector : MonoBehaviour
             Tower tower = hit.collider.GetComponent<Tower>()
                 ?? hit.collider.GetComponentInParent<Tower>()
                 ?? hit.collider.GetComponentInChildren<Tower>();
-            BuildSpot spot = null;
+            BuildSpot spot = tower != null ? tower.OwningSpot : null;
 
-            if (tower != null)
-            {
-                spot = tower.GetComponentInParent<BuildSpot>();
-            }
-            else
+            if (tower == null)
             {
                 HexCell hex = hit.collider.GetComponent<HexCell>()
                     ?? hit.collider.GetComponentInParent<HexCell>()
                     ?? hit.collider.GetComponentInChildren<HexCell>();
                 if (hex != null)
                 {
-                    spot = hex.GetTowerSocket();
-                    if (spot != null)
-                        tower = spot.GetCurrentTower();
+                    tower = hex.GetPlacedTower();
+                    spot = tower != null ? tower.OwningSpot : null;
                 }
             }
 
@@ -87,7 +82,7 @@ public class TowerSelector : MonoBehaviour
             if (buildSelectionUI != null)
                 buildSelectionUI.Close();
             SetSelectedTower(tower);
-            towerMenu.ShowMenu(tower, spot);
+            towerMenu.ShowMenu(tower);
             Debug.Log($"[TowerClick] Open tower menu for {tower.gameObject.name}");
             return true;
         }
@@ -129,7 +124,7 @@ public class TowerSelector : MonoBehaviour
             {
                 if (buildSelectionUI != null) buildSelectionUI.Close();
                 SetSelectedTower(towerOnSpot);
-                towerMenu.ShowMenu(towerOnSpot, spot);
+                towerMenu.ShowMenu(towerOnSpot);
                 return;
             }
 
@@ -138,16 +133,6 @@ public class TowerSelector : MonoBehaviour
                 buildSelectionUI.OpenForSpot(spot);
                 towerMenu.HideMenu();
                 ClearSelection();
-                return;
-            }
-
-            if (towerBuilder == null)
-                towerBuilder = FindObjectOfType<TowerBuilder>();
-
-            if (towerBuilder != null && towerBuilder.TryBuildOnSpot(spot))
-            {
-                ClearSelection();
-                towerMenu.HideMenu();
                 return;
             }
 

@@ -46,6 +46,10 @@ public class Tower : MonoBehaviour
     [SerializeField] TowerRouteKind selectedRoute = TowerRouteKind.None;
     [SerializeField] [Range(0, 2)] int routeLevel = 0;
 
+    // Runtime ownership context. This establishes a stable tower -> spot source
+    // without changing current menu/selection consumers yet.
+    BuildSpot owningSpot;
+
     int _lastPaidRouteUpgradeGold;
     int _initialBuildCostSnapshot;
     float timer = 0f;
@@ -53,6 +57,12 @@ public class Tower : MonoBehaviour
 
     public TowerRouteKind SelectedRoute => selectedRoute;
     public int RouteLevel => routeLevel;
+    public BuildSpot OwningSpot => owningSpot;
+
+    public void SetOwningSpot(BuildSpot spot)
+    {
+        owningSpot = spot;
+    }
 
     void Awake()
     {

@@ -3,6 +3,38 @@ using UnityEngine.EventSystems;
 
 public class TowerBuilder : MonoBehaviour
 {
+    public readonly struct BuildSubmissionEvaluation
+    {
+        public bool CanSubmit { get; }
+        public bool HasSpot { get; }
+        public bool IsTerrainBuildable { get; }
+        public bool IsSpotBuildable { get; }
+        public bool IsPrefabValid { get; }
+        public bool IsCostValid { get; }
+        public bool HasCurrencySystem { get; }
+        public bool HasEnoughResources { get; }
+
+        public BuildSubmissionEvaluation(
+            bool canSubmit,
+            bool hasSpot,
+            bool isTerrainBuildable,
+            bool isSpotBuildable,
+            bool isPrefabValid,
+            bool isCostValid,
+            bool hasCurrencySystem,
+            bool hasEnoughResources)
+        {
+            CanSubmit = canSubmit;
+            HasSpot = hasSpot;
+            IsTerrainBuildable = isTerrainBuildable;
+            IsSpotBuildable = isSpotBuildable;
+            IsPrefabValid = isPrefabValid;
+            IsCostValid = isCostValid;
+            HasCurrencySystem = hasCurrencySystem;
+            HasEnoughResources = hasEnoughResources;
+        }
+    }
+
     [Header("References")]
     public GameObject towerPrefab;
     public GameObject towerPreviewPrefab;
@@ -84,27 +116,10 @@ public class TowerBuilder : MonoBehaviour
         GameObject prefab = prefabOverride != null ? prefabOverride : towerPrefab;
         int cost = costOverride >= 0 ? costOverride : towerCost;
 
-        if (prefab == null)
+        var evaluation = EvaluateBuildRequest(spot, prefab, cost);
+        if (!evaluation.CanSubmit)
         {
-            Debug.LogWarning("[TowerBuilder] Build failed: prefab null");
-            return false;
-        }
-
-        if (spot == null)
-        {
-            Debug.LogWarning("[TowerBuilder] Build failed: spot null");
-            return false;
-        }
-
-        if (currencySystem == null)
-        {
-            Debug.LogWarning("[TowerBuilder] Build failed: currency system null");
-            return false;
-        }
-
-        if (!spot.CanBuild())
-        {
-            Debug.LogWarning("[TowerBuilder] Build failed: spot cannot build");
+            LogInvalidBuildRequest(evaluation);
             return false;
         }
 
@@ -129,6 +144,7 @@ public class TowerBuilder : MonoBehaviour
 
         if (tower != null)
         {
+            tower.SetOwningSpot(spot);
             var hexCell = spot.GetComponentInParent<HexCell>();
             if (hexCell != null)
                 hexCell.NotifyTowerPlaced(tower);
@@ -147,6 +163,79 @@ public class TowerBuilder : MonoBehaviour
         _lastSpot = null;
 
         return true;
+    }
+
+    public BuildSubmissionEvaluation EvaluateBuildRequest(BuildSpot spot, GameObject prefab, int cost)
+    {
+        bool hasSpot = spot != null;
+        var hexCell = hasSpot ? spot.GetComponentInParent<HexCell>() : null;
+        bool isTerrainBuildable = hasSpot && (hexCell == null || hexCell.IsBuildable());
+        bool isSpotBuildable = hasSpot && spot.CanBuild();
+        bool isPrefabValid = prefab != null;
+        bool isCostValid = cost >= 0;
+        bool hasCurrency = currencySystem != null;
+        bool hasEnoughResources = hasCurrency && isCostValid && currencySystem.HasEnoughGold(cost);
+        bool canSubmit =
+            hasSpot &&
+            isTerrainBuildable &&
+            isSpotBuildable &&
+            isPrefabValid &&
+            isCostValid &&
+            hasCurrency &&
+            hasEnoughResources;
+
+        return new BuildSubmissionEvaluation(
+            canSubmit,
+            hasSpot,
+            isTerrainBuildable,
+            isSpotBuildable,
+            isPrefabValid,
+            isCostValid,
+            hasCurrency,
+            hasEnoughResources
+        );
+    }
+
+    private void LogInvalidBuildRequest(BuildSubmissionEvaluation evaluation)
+    {
+        if (!evaluation.HasSpot)
+        {
+            Debug.LogWarning("[TowerBuilder] Build failed: spot null");
+            return;
+        }
+
+        if (!evaluation.IsTerrainBuildable)
+        {
+            Debug.LogWarning("[TowerBuilder] Build failed: hex cell not buildable");
+            return;
+        }
+
+        if (!evaluation.IsSpotBuildable)
+        {
+            Debug.LogWarning("[TowerBuilder] Build failed: spot cannot build");
+            return;
+        }
+
+        if (!evaluation.IsPrefabValid)
+        {
+            Debug.LogWarning("[TowerBuilder] Build failed: prefab null");
+            return;
+        }
+
+        if (!evaluation.IsCostValid)
+        {
+            Debug.LogWarning("[TowerBuilder] Build failed: cost invalid");
+            return;
+        }
+
+        if (!evaluation.HasCurrencySystem)
+        {
+            Debug.LogWarning("[TowerBuilder] Build failed: currency system null");
+            return;
+        }
+
+        if (!evaluation.HasEnoughResources)
+            Debug.LogWarning("[TowerBuilder] Build failed: not enough gold");
     }
 
     private void UpdatePreview()

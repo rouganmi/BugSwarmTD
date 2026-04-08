@@ -3,8 +3,10 @@ using System.Collections.Generic;
 
 public class BuildSpot : MonoBehaviour
 {
+    // Truth-shell state. Keep occupancy and anchor semantics stable.
     [SerializeField] private bool isOccupied = false;
     [SerializeField] private Tower currentTower;
+    // Visual compatibility only. Serialized shape stays intact for current scenes.
 
     [Header("Visual — pad tint")]
     [SerializeField] private bool enableHoverHighlight = true;
@@ -50,6 +52,7 @@ public class BuildSpot : MonoBehaviour
 
     static bool _loggedHexVisualRingHidden;
 
+    // Truth-shell API: occupancy state plus this transform as the build anchor.
     public bool CanBuild()
     {
         return !isOccupied && currentTower == null;
@@ -65,7 +68,7 @@ public class BuildSpot : MonoBehaviour
         EnsureRing();
         _renderers = GetComponentsInChildren<Renderer>(true);
         CacheOriginalColors();
-        ApplyVisualState();
+        SyncVisualStateFromTruth();
     }
 
     private bool HasTintableMaterials()
@@ -163,6 +166,7 @@ public class BuildSpot : MonoBehaviour
         ApplyHover(false);
     }
 
+    // Truth-shell API: commit occupancy after a successful build.
     public void SetCurrentTower(Tower tower)
     {
         currentTower = tower;
@@ -170,35 +174,45 @@ public class BuildSpot : MonoBehaviour
 
         _isHovered = false;
         RestorePadScale();
-        ApplyVisualState();
+        SyncVisualStateFromTruth();
     }
 
+    // Truth-shell API: expose the currently committed tower.
     public Tower GetCurrentTower()
     {
         return currentTower;
     }
 
+    // Truth-shell API: release occupancy after sell/remove.
     public void ClearTower()
     {
         currentTower = null;
         isOccupied = false;
         if (_ring == null) EnsureRing();
         else RebuildRingPoints();
-        ApplyVisualState();
+        SyncVisualStateFromTruth();
     }
 
+    // Visual compatibility API retained for current runtime wiring.
     public void SetHoverEnabled(bool value)
     {
         enableHoverHighlight = value;
-        ApplyVisualState();
+        SyncVisualStateFromTruth();
     }
 
+    // Visual compatibility entry point. This must not mutate occupancy truth.
     public void ApplyHover(bool hovered)
     {
         _isHovered = hovered;
+        SyncVisualStateFromTruth();
+    }
+
+    void SyncVisualStateFromTruth()
+    {
         ApplyVisualState();
     }
 
+    // Visual compatibility layer only. Avoid adding build-rule truth here.
     private void ApplyVisualState()
     {
         if (!CanBuild())

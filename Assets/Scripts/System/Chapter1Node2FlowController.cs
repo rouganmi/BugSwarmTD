@@ -11,20 +11,25 @@ public class Chapter1Node2FlowController : MonoBehaviour
     {
         IntroShowing,
         Running,
+        VictoryShowing,
         DefeatShowing
     }
 
     private Node2State _state;
     private RuntimeNodeContext _ctx;
+    private NodeDefinition _def;
     private Canvas _canvas;
     private BaseHealth _baseHealth;
+    private EnemySpawner _enemySpawner;
 
     private GameObject _introRoot;
     private GameObject _resultRoot;
     private TMP_Text _resultTitle;
     private TMP_Text _resultBody;
-    private Button _resultRetryButton;
-    private Button _resultCloseButton;
+    private Button _resultPrimaryButton;
+    private TMP_Text _resultPrimaryLabel;
+    private Button _resultSecondaryButton;
+    private TMP_Text _resultSecondaryLabel;
 
     private float _nextUpdateLogTime;
     private string _lastUpdateSnapshot;
@@ -123,8 +128,10 @@ public class Chapter1Node2FlowController : MonoBehaviour
     {
         _canvas = FindObjectOfType<Canvas>();
         _baseHealth = FindObjectOfType<BaseHealth>();
+        _enemySpawner = FindObjectOfType<EnemySpawner>();
+        TryRefreshContextDefinition(out _def);
         BuildUiIfNeeded();
-        Log($"Start.afterBuildUi canvas={(_canvas!=null)} baseHealth={(_baseHealth!=null)} ctx={ContextKey()}");
+        Log($"Start.afterBuildUi canvas={(_canvas!=null)} baseHealth={(_baseHealth!=null)} enemySpawner={(_enemySpawner!=null)} ctx={ContextKey()}");
         ShowIntro();
     }
 
@@ -149,7 +156,7 @@ public class Chapter1Node2FlowController : MonoBehaviour
             return;
         }
 
-        if (_ctx == null || !IsTargetNode2(_ctx.CurrentDefinition))
+        if (!TryRefreshContextDefinition(out _def))
         {
             Log($"Update.return (ctx not Node2) ctx={(_ctx==null ? "<null>" : ContextKey())}");
             return;
@@ -157,6 +164,8 @@ public class Chapter1Node2FlowController : MonoBehaviour
 
         if (_baseHealth == null)
             _baseHealth = FindObjectOfType<BaseHealth>();
+        if (_enemySpawner == null)
+            _enemySpawner = FindObjectOfType<EnemySpawner>();
 
         if (_baseHealth == null)
         {
@@ -168,7 +177,11 @@ public class Chapter1Node2FlowController : MonoBehaviour
         {
             Log($"Update.willShowDefeat hp={_baseHealth.GetCurrentHealth()}");
             ShowDefeatResult();
+            return;
         }
+
+        if (ShouldCompleteNode2())
+            ShowVictoryResult();
     }
 
     private void BuildUiIfNeeded()
@@ -209,34 +222,123 @@ public class Chapter1Node2FlowController : MonoBehaviour
         Time.timeScale = 1f;
     }
 
+    private bool TryRefreshContextDefinition(out NodeDefinition def)
+    {
+        if (_ctx == null)
+            _ctx = RuntimeNodeContext.Instance != null ? RuntimeNodeContext.Instance : Object.FindObjectOfType<RuntimeNodeContext>();
+
+        def = _ctx != null ? _ctx.CurrentDefinition : null;
+        if (!IsTargetNode2(def))
+        {
+            def = null;
+            return false;
+        }
+
+        _def = def;
+        return true;
+    }
+
+    private bool ShouldCompleteNode2()
+    {
+        if (_state == Node2State.VictoryShowing || _state == Node2State.DefeatShowing)
+            return false;
+
+        if (!TryRefreshContextDefinition(out var def))
+            return false;
+
+        if (_baseHealth == null || _baseHealth.GetCurrentHealth() <= 0)
+            return false;
+
+        if (_enemySpawner == null)
+            return false;
+
+        if (_enemySpawner.GetCurrentWave() < GetTargetFinalWave(def))
+            return false;
+
+        if (FindObjectsOfType<Enemy>().Length != 0)
+            return false;
+
+        return true;
+    }
+
+    private static int GetTargetFinalWave(NodeDefinition def)
+    {
+        return def != null && def.expectedFinalWave > 0 ? def.expectedFinalWave : 8;
+    }
+
+    private void ShowVictoryResult()
+    {
+        Log($"ShowVictoryResult.enter state={_state} ctx={ContextKey()}");
+        if (_state == Node2State.VictoryShowing || _state == Node2State.DefeatShowing)
+            return;
+
+        _state = Node2State.VictoryShowing;
+
+        string title = _def != null ? _def.victoryTitle : "Chapter1_Node2 Complete";
+        string body = _def != null ? _def.victoryBody : "Node2 complete.";
+        bool allowRetry = _def != null ? _def.allowRetry : true;
+
+        ShowResult(
+            title: title,
+            body: body,
+            primary: "Close",
+            secondary: allowRetry ? "Retry" : string.Empty,
+            allowRetry: allowRetry
+        );
+    }
+
     private void ShowDefeatResult()
     {
         Log($"ShowDefeatResult.enter state={_state} ctx={ContextKey()}");
-        if (_state == Node2State.DefeatShowing)
+        if (_state == Node2State.VictoryShowing || _state == Node2State.DefeatShowing)
             return;
 
         _state = Node2State.DefeatShowing;
+        string title = _def != null ? _def.defeatTitle : "Mission Failed";
+        string body = _def != null ? _def.defeatBody : "Try again.";
+        bool allowRetry = _def != null ? _def.allowRetry : true;
+
+        ShowResult(
+            title: title,
+            body: body,
+            primary: allowRetry ? "Retry" : "Close",
+            secondary: "Close",
+            allowRetry: allowRetry
+        );
+    }
+
+    private void ShowResult(string title, string body, string primary, string secondary, bool allowRetry)
+    {
         BuildUiIfNeeded();
 
         if (_introRoot != null)
             _introRoot.SetActive(false);
         if (_resultRoot != null)
             _resultRoot.SetActive(true);
-        Log($"ShowDefeatResult.show resultActive={(_resultRoot!=null && _resultRoot.activeSelf)}");
+        Log($"ShowResult.show resultActive={(_resultRoot!=null && _resultRoot.activeSelf)} primary={primary} secondary={secondary}");
 
-        if (_resultTitle != null) _resultTitle.text = "Mission Failed";
-        if (_resultBody != null) _resultBody.text = "Try again.";
+        if (_resultTitle != null) _resultTitle.text = title;
+        if (_resultBody != null) _resultBody.text = body;
 
-        if (_resultRetryButton != null)
+        if (_resultPrimaryLabel != null) _resultPrimaryLabel.text = primary;
+        if (_resultSecondaryLabel != null) _resultSecondaryLabel.text = secondary;
+
+        if (_resultPrimaryButton != null)
         {
-            _resultRetryButton.onClick.RemoveAllListeners();
-            _resultRetryButton.onClick.AddListener(RetryToMain);
+            _resultPrimaryButton.onClick.RemoveAllListeners();
+            if (primary == "Retry" && allowRetry) _resultPrimaryButton.onClick.AddListener(RetryToMain);
+            else _resultPrimaryButton.onClick.AddListener(CloseResult);
         }
-        if (_resultCloseButton != null)
+
+        if (_resultSecondaryButton != null)
         {
-            _resultCloseButton.onClick.RemoveAllListeners();
-            _resultCloseButton.onClick.AddListener(CloseResult);
+            _resultSecondaryButton.gameObject.SetActive(!string.IsNullOrEmpty(secondary));
+            _resultSecondaryButton.onClick.RemoveAllListeners();
+            if (secondary == "Retry" && allowRetry) _resultSecondaryButton.onClick.AddListener(RetryToMain);
+            else _resultSecondaryButton.onClick.AddListener(CloseResult);
         }
+
+        Time.timeScale = 0f;
     }
 
     private void RetryToMain()
@@ -245,6 +347,7 @@ public class Chapter1Node2FlowController : MonoBehaviour
         _isInvalidForReuse = true;
         Log("RetryToMain.marked invalidForReuse");
         Time.timeScale = 1f;
+        Destroy(gameObject);
         SceneManager.LoadScene("Main");
     }
 
@@ -351,11 +454,13 @@ public class Chapter1Node2FlowController : MonoBehaviour
         _resultBody.enableWordWrapping = true;
         SetAnchored(_resultBody.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -8f), new Vector2(580f, 110f));
 
-        _resultRetryButton = BuildButton(card.transform, "RetryButton", "Retry");
-        SetAnchored(_resultRetryButton.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(1f, 0f), new Vector2(-20f, 22f), new Vector2(240f, 44f));
+        _resultPrimaryButton = BuildButton(card.transform, "PrimaryButton", "Retry");
+        _resultPrimaryLabel = _resultPrimaryButton.GetComponentInChildren<TMP_Text>(true);
+        SetAnchored(_resultPrimaryButton.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(1f, 0f), new Vector2(-20f, 22f), new Vector2(240f, 44f));
 
-        _resultCloseButton = BuildButton(card.transform, "CloseButton", "Close");
-        SetAnchored(_resultCloseButton.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 0f), new Vector2(20f, 22f), new Vector2(240f, 44f));
+        _resultSecondaryButton = BuildButton(card.transform, "SecondaryButton", "Close");
+        _resultSecondaryLabel = _resultSecondaryButton.GetComponentInChildren<TMP_Text>(true);
+        SetAnchored(_resultSecondaryButton.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 0f), new Vector2(20f, 22f), new Vector2(240f, 44f));
 
         root.SetActive(false);
         return root;
@@ -407,4 +512,3 @@ public class Chapter1Node2FlowController : MonoBehaviour
         }
     }
 }
-

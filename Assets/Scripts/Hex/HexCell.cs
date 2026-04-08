@@ -7,6 +7,7 @@ using UnityEngine;
 /// </summary>
 public class HexCell : MonoBehaviour
 {
+    #region Visual helper constants and cached resources
     static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     static readonly int ColorId = Shader.PropertyToID("_Color");
     static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
@@ -38,7 +39,9 @@ public class HexCell : MonoBehaviour
     static readonly Color NonBuildableBase = new Color(0.20f, 0.24f, 0.30f, 1f);
     static readonly Color HighlightColor = new Color(0.05f, 0.92f, 0.55f, 1f);
     static readonly Color HighlightEmission = new Color(0.15f, 0.85f, 0.45f, 1f);
+    #endregion
 
+    #region Unity lifecycle
     void Awake()
     {
         if (meshFilter == null)
@@ -49,12 +52,18 @@ public class HexCell : MonoBehaviour
             meshCollider = GetComponent<MeshCollider>();
         _mpb = new MaterialPropertyBlock();
     }
+    #endregion
 
     /// <summary>轴向 q（与生成器一致，可为负）。</summary>
+    #region Stable truth and lifecycle surface
+    // Stable external truth/lifecycle contract for the current build flow.
+    // Keep behavior here unchanged while ownership, bridge, and visual concerns evolve around it.
     public int GridX => _gridX;
     /// <summary>轴向 r（与生成器一致，可为负）。</summary>
     public int GridY => _gridY;
 
+    #region Ownership and creation
+    // Ownership/setup path: initialize the cell shell and create its runtime BuildSpot/socket relationship.
     public void Initialize(int x, int y, bool buildable, float circumRadius, float prismHeight)
     {
         _gridX = x;
@@ -107,6 +116,8 @@ public class HexCell : MonoBehaviour
     }
 
     /// <summary>外圈禁建等地形规则：false 时不可建造。</summary>
+    #endregion
+
     public bool IsBuildable() => _terrainBuildable;
 
     /// <summary>地形允许且格上尚未建塔（与 BuildSpot 一致）。</summary>
@@ -137,6 +148,9 @@ public class HexCell : MonoBehaviour
         Debug.Log($"[HexBuild] Cell released after sell {_gridX},{_gridY}");
     }
 
+    #endregion
+
+    #region Ownership and creation
     void EnsureTowerSocket(float circumRadius, float prismHeight)
     {
         if (_buildSpot != null)
@@ -185,6 +199,10 @@ public class HexCell : MonoBehaviour
             SetLayerRecursively(t.GetChild(i).gameObject, layer);
     }
 
+    #endregion
+
+    #region Visual helper surface
+    // Visual-only helpers. These should consume cell truth and socket state, not become new rule entry points.
     public void ApplyHighlight()
     {
         if (!_terrainBuildable || targetRenderer == null)
@@ -233,6 +251,9 @@ public class HexCell : MonoBehaviour
         targetRenderer.SetPropertyBlock(_mpb);
     }
 
+    #endregion
+
+    #region Visual mesh cache
     static Mesh GetOrCreateUnitHexPrismMesh()
     {
         if (_unitHexPrismMesh != null)
@@ -310,6 +331,9 @@ public class HexCell : MonoBehaviour
     }
 
     /// <summary>由 <see cref="HexGridManager"/> 射线命中后调用（不依赖 OnMouseDown）。</summary>
+    #endregion
+
+    #region Click bridge and UI bridge
     public void HandleClick()
     {
         Debug.Log($"[HexBuild] HandleClick start {_gridX},{_gridY} buildable={_terrainBuildable} hasTower={HasTower()}");
@@ -332,11 +356,20 @@ public class HexCell : MonoBehaviour
             return;
         }
 
+        if (!TryOpenBuildSelectionForCurrentSpot())
+            return;
+        // 悬停高亮由 HexGridManager.UpdateHexHover 每帧维护，不再在点击后锁定 SelectCell。
+    }
+
+    /// <summary>优先 <see cref="BuildSelectionUI.Instance"/>；否则在 <see cref="Canvas"/> 下自动创建。</summary>
+    // Thin UI bridge only. Resolve an existing BuildSelectionUI and forward the click to it.
+    bool TryOpenBuildSelectionForCurrentSpot()
+    {
         var ui = FindOrCreateBuildSelectionUI();
         if (ui == null)
         {
             Debug.LogError("[HexBuild] Ignored: UI not resolved");
-            return;
+            return false;
         }
 
         ui.OpenForSpot(_buildSpot);
@@ -344,10 +377,9 @@ public class HexCell : MonoBehaviour
         Debug.Log($"[HexCell] Forwarded click to BuildSpot cell={_gridX},{_gridY} spot={_buildSpot.name}");
 #endif
         Debug.Log($"[HexBuild] Open build menu at {_gridX},{_gridY}");
-        // 悬停高亮由 HexGridManager.UpdateHexHover 每帧维护，不再在点击后锁定 SelectCell。
+        return true;
     }
 
-    /// <summary>优先 <see cref="BuildSelectionUI.Instance"/>；否则在 <see cref="Canvas"/> 下自动创建。</summary>
     BuildSelectionUI FindOrCreateBuildSelectionUI()
     {
         if (BuildSelectionUI.Instance != null)
@@ -360,36 +392,19 @@ public class HexCell : MonoBehaviour
             return BuildSelectionUI.Instance;
         }
 
-        var dormant = Resources.FindObjectsOfTypeAll<BuildSelectionUI>();
-        for (int i = 0; i < dormant.Length; i++)
+        var existingUi = Object.FindObjectOfType<BuildSelectionUI>();
+        if (existingUi != null)
         {
-            var b = dormant[i];
-            if (b == null || !b.gameObject.scene.IsValid())
-                continue;
-            if (!b.gameObject.activeSelf)
-                b.gameObject.SetActive(true);
-            if (BuildSelectionUI.Instance != null)
+            if (!_loggedFoundExistingBuildUi)
             {
-                if (!_loggedFoundExistingBuildUi)
-                {
-                    Debug.Log("[HexBuild] Found existing BuildSelectionUI");
-                    _loggedFoundExistingBuildUi = true;
-                }
-                return BuildSelectionUI.Instance;
+                Debug.Log("[HexBuild] Resolved existing BuildSelectionUI");
+                _loggedFoundExistingBuildUi = true;
             }
+            return existingUi;
         }
 
-        Canvas canvas = Object.FindObjectOfType<Canvas>();
-        if (canvas == null)
-        {
-            Debug.LogError("[HexBuild] No Canvas found for BuildSelectionUI creation.");
-            return null;
-        }
-
-        var go = new GameObject("BuildSelectionUI");
-        go.transform.SetParent(canvas.transform, false);
-        var ui = go.AddComponent<BuildSelectionUI>();
-        Debug.Log("[HexBuild] Auto-created BuildSelectionUI under Canvas");
-        return ui;
+        Debug.LogError("[HexBuild] BuildSelectionUI not found in scene.");
+        return null;
     }
+    #endregion
 }

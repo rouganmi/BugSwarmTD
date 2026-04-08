@@ -170,14 +170,14 @@ public class BuildSelectionUI : MonoBehaviour
             return;
         }
 
-        if (!spot.CanBuild())
+        EnsureOptionsPopulated();
+        Debug.Log("[BuildUI] EnsureOptionsPopulated done");
+
+        if (!CanOpenForSpot(spot))
         {
             Debug.Log("[BuildUI] OpenForSpot ignored: spot cannot build");
             return;
         }
-
-        EnsureOptionsPopulated();
-        Debug.Log("[BuildUI] EnsureOptionsPopulated done");
 
         EnsureUiBuilt();
         if (_modalRoot == null || _rowsParent == null)
@@ -248,14 +248,12 @@ public class BuildSelectionUI : MonoBehaviour
 
     private void RefreshAffordability()
     {
-        int gold = currencySystem != null ? currencySystem.GetCurrentGold() : 0;
-
         for (int i = 0; i < _rows.Count; i++)
         {
             RowWidgets r = _rows[i];
             if (r.Button == null || r.Option == null) continue;
 
-            bool ok = gold >= r.Option.cost && r.Option.towerPrefab != null;
+            bool ok = TryEvaluateOption(r.Option, out var evaluation) && evaluation.CanSubmit;
             r.Button.interactable = ok;
             if (r.Group != null)
                 r.Group.alpha = ok ? 1f : 0.55f;
@@ -468,18 +466,18 @@ public class BuildSelectionUI : MonoBehaviour
             return;
         }
 
-        if (currencySystem != null && !currencySystem.HasEnoughGold(option.cost))
-        {
-            Debug.LogWarning($"[BuildUI] OnRowClicked aborted: not enough gold (need {option.cost}, id={optId})");
-            RefreshAffordability();
-            return;
-        }
-
         if (towerBuilder == null) towerBuilder = FindObjectOfType<TowerBuilder>();
         if (towerBuilder == null)
         {
             Debug.LogWarning("[BuildUI] OnRowClicked aborted: towerBuilder null");
             CloseInternal("NoTowerBuilder");
+            return;
+        }
+
+        if (!TryEvaluateOption(option, out var evaluation) || !evaluation.CanSubmit)
+        {
+            Debug.LogWarning($"[BuildUI] OnRowClicked aborted: unified evaluation rejected build (option={optId})");
+            RefreshAffordability();
             return;
         }
 
@@ -495,6 +493,38 @@ public class BuildSelectionUI : MonoBehaviour
             Debug.LogWarning($"[BuildUI] OnRowClicked: TryBuildOnSpot returned false (option={optId})");
             RefreshAffordability();
         }
+    }
+
+    private bool CanOpenForSpot(BuildSpot spot)
+    {
+        if (!EnsureTowerBuilderResolved())
+            return false;
+
+        var evaluation = towerBuilder.EvaluateBuildRequest(spot, null, 0);
+        return evaluation.HasSpot && evaluation.IsTerrainBuildable && evaluation.IsSpotBuildable;
+    }
+
+    private bool TryEvaluateOption(BuildTowerOption option, out TowerBuilder.BuildSubmissionEvaluation evaluation)
+    {
+        if (!EnsureTowerBuilderResolved() || option == null)
+        {
+            evaluation = default;
+            return false;
+        }
+
+        evaluation = towerBuilder.EvaluateBuildRequest(
+            _pendingSpot,
+            option.towerPrefab,
+            option.cost
+        );
+        return true;
+    }
+
+    private bool EnsureTowerBuilderResolved()
+    {
+        if (towerBuilder == null)
+            towerBuilder = FindObjectOfType<TowerBuilder>();
+        return towerBuilder != null;
     }
 
     private static GameObject CreateUiObject(string name, Transform parent)

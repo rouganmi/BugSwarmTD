@@ -148,7 +148,8 @@ public class TowerMenu : MonoBehaviour
             return false;
         }
 
-        if (selectedSpot != null && selectedSpot.GetCurrentTower() != selectedTower)
+        BuildSpot activeSpot = GetActiveSelectedSpot();
+        if (activeSpot != null && activeSpot.GetCurrentTower() != selectedTower)
         {
             HideMenu();
             return false;
@@ -157,10 +158,11 @@ public class TowerMenu : MonoBehaviour
         return true;
     }
 
-    public void ShowMenu(Tower tower, BuildSpot spot)
+    public void ShowMenu(Tower tower)
     {
         selectedTower = tower;
-        selectedSpot = spot;
+        if (selectedTower != null && selectedTower.OwningSpot != null)
+            selectedSpot = selectedTower.OwningSpot;
 
         if (HexGridManager.Instance != null)
         {
@@ -193,6 +195,12 @@ public class TowerMenu : MonoBehaviour
         UpdatePanelPosition();
     }
 
+    public void ShowMenu(Tower tower, BuildSpot spot)
+    {
+        selectedSpot = spot;
+        ShowMenu(tower);
+    }
+
     public void HideMenu()
     {
         bool hadHexChrome = HexGridManager.Instance != null &&
@@ -216,6 +224,13 @@ public class TowerMenu : MonoBehaviour
             panel.SetActive(false);
 
         SelectionInfoPanel.Instance?.Hide();
+    }
+
+    BuildSpot GetActiveSelectedSpot()
+    {
+        if (selectedTower != null && selectedTower.OwningSpot != null)
+            return selectedTower.OwningSpot;
+        return selectedSpot;
     }
 
     /// <summary>Legacy UI / UnityEvent: picks Route A if none selected, else continues current route.</summary>
@@ -293,13 +308,14 @@ public class TowerMenu : MonoBehaviour
 
     public void SellSelectedTower()
     {
-        if (selectedTower == null || currencySystem == null || selectedSpot == null)
+        BuildSpot activeSpot = GetActiveSelectedSpot();
+        if (selectedTower == null || currencySystem == null || activeSpot == null)
         {
             Debug.Log("[TowerSell] Sell aborted (missing tower, currency, or spot)");
             return;
         }
 
-        var hex = selectedSpot.GetComponentInParent<HexCell>();
+        var hex = activeSpot.GetComponentInParent<HexCell>();
         int refund = selectedTower.GetSellValue();
         string towerName = selectedTower.gameObject.name;
 
@@ -309,7 +325,7 @@ public class TowerMenu : MonoBehaviour
         if (hex != null)
             hex.NotifyTowerSold();
         else
-            selectedSpot.ClearTower();
+            activeSpot.ClearTower();
 
         Debug.Log($"[TowerSell] Sell success tower={towerName} refund={refund}");
 
