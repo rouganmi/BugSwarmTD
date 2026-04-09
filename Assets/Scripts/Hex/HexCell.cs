@@ -22,8 +22,6 @@ public class HexCell : MonoBehaviour
     [Header("Visual tweak")]
     [SerializeField] float selectedLift = 0.06f;
 
-    static bool _loggedFoundExistingBuildUi;
-
     int _gridX;
     int _gridY;
     bool _terrainBuildable;
@@ -124,6 +122,8 @@ public class HexCell : MonoBehaviour
     public bool CanPlaceTower() => _terrainBuildable && _buildSpot != null && _buildSpot.CanBuild();
 
     public bool HasTower() => _placedTower != null || (_buildSpot != null && !_buildSpot.CanBuild());
+
+    public BuildSpot GetBuildSpot() => _buildSpot;
 
     public Tower GetPlacedTower() => _placedTower != null ? _placedTower : _buildSpot != null ? _buildSpot.GetCurrentTower() : null;
 
@@ -331,78 +331,37 @@ public class HexCell : MonoBehaviour
     /// <summary>由 <see cref="HexGridManager"/> 射线命中后调用（不依赖 OnMouseDown）。</summary>
     #endregion
 
-    #region Click bridge and UI bridge
-    public void HandleClick()
+    #region Build selection bridge
+    public bool TryGetBuildSelectionSpot(out BuildSpot buildSpot)
     {
-        Debug.Log($"[HexBuild] HandleClick start {_gridX},{_gridY} buildable={_terrainBuildable} hasTower={HasTower()}");
+        buildSpot = null;
+        Debug.Log($"[HexBuild] Evaluate build selection spot {_gridX},{_gridY} buildable={_terrainBuildable} hasTower={HasTower()}");
 
         if (!_terrainBuildable)
         {
             Debug.Log("[HexBuild] Ignored: non-buildable");
-            return;
+            return false;
         }
 
         if (_buildSpot == null)
         {
             Debug.Log("[HexBuild] Ignored: BuildSpot missing");
-            return;
+            return false;
         }
 
         if (!_buildSpot.CanBuild())
         {
             Debug.Log("[HexBuild] Ignored: already has tower");
-            return;
-        }
-
-        if (!TryOpenBuildSelectionForCurrentSpot())
-            return;
-        // 悬停高亮由 HexGridManager.UpdateHexHover 每帧维护，不再在点击后锁定 SelectCell。
-    }
-
-    /// <summary>优先 <see cref="BuildSelectionUI.Instance"/>；否则在 <see cref="Canvas"/> 下自动创建。</summary>
-    // Thin UI bridge only. Resolve an existing BuildSelectionUI and forward the click to it.
-    bool TryOpenBuildSelectionForCurrentSpot()
-    {
-        var ui = FindOrCreateBuildSelectionUI();
-        if (ui == null)
-        {
-            Debug.LogError("[HexBuild] Ignored: UI not resolved");
             return false;
         }
 
-        ui.OpenForSpot(_buildSpot);
+        buildSpot = _buildSpot;
 #if UNITY_EDITOR
-        Debug.Log($"[HexCell] Forwarded click to BuildSpot cell={_gridX},{_gridY} spot={_buildSpot.name}");
+        Debug.Log($"[HexCell] Resolved build selection spot cell={_gridX},{_gridY} spot={_buildSpot.name}");
 #endif
-        Debug.Log($"[HexBuild] Open build menu at {_gridX},{_gridY}");
+        Debug.Log($"[HexBuild] Ready build selection spot at {_gridX},{_gridY}");
+        // 悬停高亮由 HexGridManager.UpdateHexHover 每帧维护，不再在点击后锁定 SelectCell。
         return true;
-    }
-
-    BuildSelectionUI FindOrCreateBuildSelectionUI()
-    {
-        if (BuildSelectionUI.Instance != null)
-        {
-            if (!_loggedFoundExistingBuildUi)
-            {
-                Debug.Log("[HexBuild] Found existing BuildSelectionUI");
-                _loggedFoundExistingBuildUi = true;
-            }
-            return BuildSelectionUI.Instance;
-        }
-
-        var existingUi = Object.FindObjectOfType<BuildSelectionUI>();
-        if (existingUi != null)
-        {
-            if (!_loggedFoundExistingBuildUi)
-            {
-                Debug.Log("[HexBuild] Resolved existing BuildSelectionUI");
-                _loggedFoundExistingBuildUi = true;
-            }
-            return existingUi;
-        }
-
-        Debug.LogError("[HexBuild] BuildSelectionUI not found in scene.");
-        return null;
     }
     #endregion
 }

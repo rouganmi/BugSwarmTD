@@ -10,6 +10,14 @@ public class BuildSelectionUI : MonoBehaviour
     /// <summary>供 Hex 建造入口等稳定获取，避免在场景中盲搜。</summary>
     public static BuildSelectionUI Instance { get; private set; }
 
+    /// <summary>供 Hex 输入桥接解析现有 BuildSelectionUI；不负责创建。</summary>
+    public static BuildSelectionUI ResolveExisting()
+    {
+        if (Instance != null)
+            return Instance;
+        return Object.FindObjectOfType<BuildSelectionUI>();
+    }
+
     [Header("Data")]
     [SerializeField] private BuildTowerOption[] towerOptions;
 

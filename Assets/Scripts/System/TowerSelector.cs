@@ -68,8 +68,20 @@ public class TowerSelector : MonoBehaviour
                     ?? hit.collider.GetComponentInChildren<HexCell>();
                 if (hex != null)
                 {
-                    tower = hex.GetPlacedTower();
-                    spot = tower != null ? tower.OwningSpot : null;
+                    BuildSpot hexSpot = hex.GetBuildSpot();
+                    if (hexSpot != null)
+                    {
+                        tower = hexSpot.GetCurrentTower();
+                        spot = tower != null ? tower.OwningSpot : null;
+                    }
+
+                    if (tower == null)
+                    {
+                        Tower fallbackTower = hex.GetPlacedTower();
+                        Debug.Log($"[GetPlacedTowerFallback][TowerSelector] hexExists=true hexSpotNull={(hexSpot == null)} hexSpotCurrentTowerNull={(hexSpot == null || hexSpot.GetCurrentTower() == null)} fallbackTowerNonNull={(fallbackTower != null)}");
+                        tower = fallbackTower;
+                        spot = tower != null ? tower.OwningSpot : null;
+                    }
                 }
             }
 

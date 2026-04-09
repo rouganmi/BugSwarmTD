@@ -100,10 +100,22 @@ public class HexGridManager : MonoBehaviour
             return;
         }
 
+        BuildSelectionUI buildSelectionUi = BuildSelectionUI.ResolveExisting();
+
         Debug.Log($"[HexInput] Resolved HexCell {cell.GridX},{cell.GridY}");
         if (towerSelector != null)
             towerSelector.OnBeforeHexCellWorldClick();
-        cell.HandleClick();
+
+        if (!cell.TryGetBuildSelectionSpot(out BuildSpot buildSpot))
+            return;
+
+        if (buildSelectionUi == null)
+        {
+            Debug.LogError("[HexBuild] Ignored: UI not resolved");
+            return;
+        }
+
+        buildSelectionUi.OpenForSpot(buildSpot);
     }
 
     /// <summary>每帧根据鼠标射线更新可建格的悬停高亮；指针在 UI 上时不做世界悬停。</summary>
