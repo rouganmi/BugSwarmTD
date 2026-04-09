@@ -127,8 +127,6 @@ public class HexCell : MonoBehaviour
 
     public Tower GetPlacedTower() => _placedTower != null ? _placedTower : _buildSpot != null ? _buildSpot.GetCurrentTower() : null;
 
-    public BuildSpot GetTowerSocket() => _buildSpot;
-
     /// <summary>TowerBuilder 在成功放置后调用。</summary>
     public void NotifyTowerPlaced(Tower tower)
     {

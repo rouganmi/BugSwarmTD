@@ -195,12 +195,6 @@ public class TowerMenu : MonoBehaviour
         UpdatePanelPosition();
     }
 
-    public void ShowMenu(Tower tower, BuildSpot spot)
-    {
-        selectedSpot = spot;
-        ShowMenu(tower);
-    }
-
     public void HideMenu()
     {
         bool hadHexChrome = HexGridManager.Instance != null &&
