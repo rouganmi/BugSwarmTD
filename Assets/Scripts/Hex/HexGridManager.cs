@@ -100,14 +100,21 @@ public class HexGridManager : MonoBehaviour
             return;
         }
 
-        BuildSelectionUI buildSelectionUi = BuildSelectionUI.ResolveExisting();
+        BuildSelectionUI buildSelectionUi = BuildSelectionUI.Instance;
 
         Debug.Log($"[HexInput] Resolved HexCell {cell.GridX},{cell.GridY}");
         if (towerSelector != null)
             towerSelector.OnBeforeHexCellWorldClick();
 
-        if (!cell.TryGetBuildSelectionSpot(out BuildSpot buildSpot))
+        BuildSpot buildSpot = cell.GetBuildSpot();
+        if (!cell.CanPlaceTower())
             return;
+
+        if (buildSpot == null)
+        {
+            Debug.Log("[HexBuild] Ignored: BuildSpot missing");
+            return;
+        }
 
         if (buildSelectionUi == null)
         {
@@ -171,12 +178,12 @@ public class HexGridManager : MonoBehaviour
             return;
 
         if (_hoveredCell != null)
-            _hoveredCell.ClearHighlight();
+            _hoveredCell.SetHighlightState(false);
 
         _hoveredCell = newHovered;
 
         if (_hoveredCell != null)
-            _hoveredCell.ApplyHighlight();
+            _hoveredCell.SetHighlightState(true);
     }
 
     /// <summary>建塔成功后由 HexCell 调用：同步悬停引用（视觉已在 NotifyTowerPlaced 里 ClearHighlight）。</summary>

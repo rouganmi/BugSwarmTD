@@ -74,14 +74,6 @@ public class TowerSelector : MonoBehaviour
                         tower = hexSpot.GetCurrentTower();
                         spot = tower != null ? tower.OwningSpot : null;
                     }
-
-                    if (tower == null)
-                    {
-                        Tower fallbackTower = hex.GetPlacedTower();
-                        Debug.Log($"[GetPlacedTowerFallback][TowerSelector] hexExists=true hexSpotNull={(hexSpot == null)} hexSpotCurrentTowerNull={(hexSpot == null || hexSpot.GetCurrentTower() == null)} fallbackTowerNonNull={(fallbackTower != null)}");
-                        tower = fallbackTower;
-                        spot = tower != null ? tower.OwningSpot : null;
-                    }
                 }
             }
 

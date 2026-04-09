@@ -121,15 +121,6 @@ public class EnemySelectionController : MonoBehaviour
                         tower = hexSpot.GetCurrentTower();
                         spot = tower != null ? tower.OwningSpot : null;
                     }
-
-                    if (tower == null)
-                    {
-                        Tower fallbackTower = hex.GetPlacedTower();
-                        Debug.Log($"[GetPlacedTowerFallback][EnemySelectionController] hexExists=true hexSpotNull={(hexSpot == null)} hexSpotCurrentTowerNull={(hexSpot == null || hexSpot.GetCurrentTower() == null)} fallbackTowerNonNull={(fallbackTower != null)}");
-                        tower = fallbackTower;
-                        if (tower != null)
-                            spot = tower.OwningSpot;
-                    }
                 }
             }
 

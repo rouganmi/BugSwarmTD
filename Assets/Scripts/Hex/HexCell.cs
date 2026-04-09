@@ -28,7 +28,6 @@ public class HexCell : MonoBehaviour
 
     [SerializeField] Transform towerSocket;
     BuildSpot _buildSpot;
-    Tower _placedTower;
 
     MaterialPropertyBlock _mpb;
     float _baseLocalY;
@@ -121,26 +120,20 @@ public class HexCell : MonoBehaviour
     /// <summary>地形允许且格上尚未建塔（与 BuildSpot 一致）。</summary>
     public bool CanPlaceTower() => _terrainBuildable && _buildSpot != null && _buildSpot.CanBuild();
 
-    public bool HasTower() => _placedTower != null || (_buildSpot != null && !_buildSpot.CanBuild());
-
     public BuildSpot GetBuildSpot() => _buildSpot;
-
-    public Tower GetPlacedTower() => _placedTower != null ? _placedTower : _buildSpot != null ? _buildSpot.GetCurrentTower() : null;
 
     /// <summary>TowerBuilder 在成功放置后调用。</summary>
     public void NotifyTowerPlaced(Tower tower)
     {
-        _placedTower = tower;
         if (HexGridManager.Instance != null)
             HexGridManager.Instance.OnHexBuilt(this);
-        ClearHighlight();
+        SetHighlightState(false);
         Debug.Log($"[HexBuild] Built tower at {_gridX},{_gridY}");
     }
 
     /// <summary>塔被出售或外部移除后调用：清空引用、释放 BuildSpot，格子恢复可建。</summary>
     public void NotifyTowerSold()
     {
-        _placedTower = null;
         if (_buildSpot != null)
             _buildSpot.ClearTower();
         Debug.Log($"[HexBuild] Cell released after sell {_gridX},{_gridY}");
@@ -201,7 +194,18 @@ public class HexCell : MonoBehaviour
 
     #region Visual helper surface
     // Visual-only helpers. These should consume cell truth and socket state, not become new rule entry points.
-    public void ApplyHighlight()
+    public void SetHighlightState(bool highlighted)
+    {
+        if (highlighted)
+        {
+            ApplyHighlightVisual();
+            return;
+        }
+
+        ClearHighlightVisual();
+    }
+
+    void ApplyHighlightVisual()
     {
         if (!_terrainBuildable || targetRenderer == null)
             return;
@@ -211,7 +215,7 @@ public class HexCell : MonoBehaviour
         transform.localPosition = p;
     }
 
-    public void ClearHighlight()
+    void ClearHighlightVisual()
     {
         if (!_terrainBuildable || targetRenderer == null)
             return;
@@ -331,37 +335,4 @@ public class HexCell : MonoBehaviour
     /// <summary>由 <see cref="HexGridManager"/> 射线命中后调用（不依赖 OnMouseDown）。</summary>
     #endregion
 
-    #region Build selection bridge
-    public bool TryGetBuildSelectionSpot(out BuildSpot buildSpot)
-    {
-        buildSpot = null;
-        Debug.Log($"[HexBuild] Evaluate build selection spot {_gridX},{_gridY} buildable={_terrainBuildable} hasTower={HasTower()}");
-
-        if (!_terrainBuildable)
-        {
-            Debug.Log("[HexBuild] Ignored: non-buildable");
-            return false;
-        }
-
-        if (_buildSpot == null)
-        {
-            Debug.Log("[HexBuild] Ignored: BuildSpot missing");
-            return false;
-        }
-
-        if (!_buildSpot.CanBuild())
-        {
-            Debug.Log("[HexBuild] Ignored: already has tower");
-            return false;
-        }
-
-        buildSpot = _buildSpot;
-#if UNITY_EDITOR
-        Debug.Log($"[HexCell] Resolved build selection spot cell={_gridX},{_gridY} spot={_buildSpot.name}");
-#endif
-        Debug.Log($"[HexBuild] Ready build selection spot at {_gridX},{_gridY}");
-        // 悬停高亮由 HexGridManager.UpdateHexHover 每帧维护，不再在点击后锁定 SelectCell。
-        return true;
-    }
-    #endregion
 }
