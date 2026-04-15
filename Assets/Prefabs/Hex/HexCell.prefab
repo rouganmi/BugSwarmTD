@@ -123,3 +123,4 @@ MonoBehaviour:
   meshFilter: {fileID: 771100003}
   meshCollider: {fileID: 771100005}
   selectedLift: 0.06
+  towerSocket: {fileID: 0}

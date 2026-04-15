@@ -1,6 +1,14 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 
+public enum MapBlockingTag
+{
+    None,
+    ExpansionBoundaryBlocked,
+    NestBufferBlocked,
+    SpecialZoneBlocked
+}
+
 public class TowerBuilder : MonoBehaviour
 {
     public readonly struct BuildSubmissionEvaluation
@@ -13,6 +21,12 @@ public class TowerBuilder : MonoBehaviour
         public bool IsCostValid { get; }
         public bool HasCurrencySystem { get; }
         public bool HasEnoughResources { get; }
+        public bool IsWithinExpansionBoundary { get; }
+        public bool IsInsideNestBuffer { get; }
+        public bool IsOnResourceSiteOrPort { get; }
+        public bool IsInsideSpecialBuildBlockZone { get; }
+        public bool HasMapRuleBlock { get; }
+        public MapBlockingTag MapBlockingTag { get; }
 
         public BuildSubmissionEvaluation(
             bool canSubmit,
@@ -22,7 +36,13 @@ public class TowerBuilder : MonoBehaviour
             bool isPrefabValid,
             bool isCostValid,
             bool hasCurrencySystem,
-            bool hasEnoughResources)
+            bool hasEnoughResources,
+            bool isWithinExpansionBoundary,
+            bool isInsideNestBuffer,
+            bool isOnResourceSiteOrPort,
+            bool isInsideSpecialBuildBlockZone,
+            bool hasMapRuleBlock,
+            MapBlockingTag mapBlockingTag)
         {
             CanSubmit = canSubmit;
             HasSpot = hasSpot;
@@ -32,6 +52,38 @@ public class TowerBuilder : MonoBehaviour
             IsCostValid = isCostValid;
             HasCurrencySystem = hasCurrencySystem;
             HasEnoughResources = hasEnoughResources;
+            IsWithinExpansionBoundary = isWithinExpansionBoundary;
+            IsInsideNestBuffer = isInsideNestBuffer;
+            IsOnResourceSiteOrPort = isOnResourceSiteOrPort;
+            IsInsideSpecialBuildBlockZone = isInsideSpecialBuildBlockZone;
+            HasMapRuleBlock = hasMapRuleBlock;
+            MapBlockingTag = mapBlockingTag;
+        }
+    }
+
+    private readonly struct MapBuildFacts
+    {
+        public bool IsWithinExpansionBoundary { get; }
+        public bool IsInsideNestBuffer { get; }
+        public bool IsOnResourceSiteOrPort { get; }
+        public bool IsInsideSpecialBuildBlockZone { get; }
+        public bool HasMapRuleBlock { get; }
+        public MapBlockingTag MapBlockingTag { get; }
+
+        public MapBuildFacts(
+            bool isWithinExpansionBoundary,
+            bool isInsideNestBuffer,
+            bool isOnResourceSiteOrPort,
+            bool isInsideSpecialBuildBlockZone,
+            bool hasMapRuleBlock,
+            MapBlockingTag mapBlockingTag)
+        {
+            IsWithinExpansionBoundary = isWithinExpansionBoundary;
+            IsInsideNestBuffer = isInsideNestBuffer;
+            IsOnResourceSiteOrPort = isOnResourceSiteOrPort;
+            IsInsideSpecialBuildBlockZone = isInsideSpecialBuildBlockZone;
+            HasMapRuleBlock = hasMapRuleBlock;
+            MapBlockingTag = mapBlockingTag;
         }
     }
 
@@ -175,6 +227,7 @@ public class TowerBuilder : MonoBehaviour
         bool isCostValid = cost >= 0;
         bool hasCurrency = currencySystem != null;
         bool hasEnoughResources = hasCurrency && isCostValid && currencySystem.HasEnoughGold(cost);
+        MapBuildFacts mapFacts = ReadMapBuildFacts(hexCell);
         bool canSubmit =
             hasSpot &&
             isTerrainBuildable &&
@@ -182,7 +235,8 @@ public class TowerBuilder : MonoBehaviour
             isPrefabValid &&
             isCostValid &&
             hasCurrency &&
-            hasEnoughResources;
+            hasEnoughResources &&
+            !mapFacts.HasMapRuleBlock;
 
         return new BuildSubmissionEvaluation(
             canSubmit,
@@ -192,7 +246,44 @@ public class TowerBuilder : MonoBehaviour
             isPrefabValid,
             isCostValid,
             hasCurrency,
-            hasEnoughResources
+            hasEnoughResources,
+            mapFacts.IsWithinExpansionBoundary,
+            mapFacts.IsInsideNestBuffer,
+            mapFacts.IsOnResourceSiteOrPort,
+            mapFacts.IsInsideSpecialBuildBlockZone,
+            mapFacts.HasMapRuleBlock,
+            mapFacts.MapBlockingTag
+        );
+    }
+
+    private static MapBuildFacts ReadMapBuildFacts(HexCell hexCell)
+    {
+        var expansionBoundaryProvider =
+            hexCell != null ? hexCell.GetComponentInParent<HexGridExpansionBoundaryProvider>() : null;
+        bool isWithinExpansionBoundary =
+            expansionBoundaryProvider == null ||
+            expansionBoundaryProvider.IsWithinTemporaryAllowedBuildBoundary(hexCell);
+        bool isInsideNestBuffer =
+            hexCell != null && hexCell.GetComponent<HexNestBufferMarker>() != null;
+        bool isOnResourceSiteOrPort =
+            hexCell != null && hexCell.GetComponent<HexResourceSiteOrPortMarker>() != null;
+        bool isInsideSpecialBuildBlockZone =
+            hexCell != null && hexCell.GetComponent<HexSpecialBuildBlockMarker>() != null;
+        bool hasMapRuleBlock =
+            !isWithinExpansionBoundary || isInsideSpecialBuildBlockZone || isInsideNestBuffer;
+        MapBlockingTag mapBlockingTag =
+            !isWithinExpansionBoundary ? MapBlockingTag.ExpansionBoundaryBlocked :
+            isInsideSpecialBuildBlockZone ? MapBlockingTag.SpecialZoneBlocked :
+            isInsideNestBuffer ? MapBlockingTag.NestBufferBlocked :
+            MapBlockingTag.None;
+
+        return new MapBuildFacts(
+            isWithinExpansionBoundary: isWithinExpansionBoundary,
+            isInsideNestBuffer: isInsideNestBuffer,
+            isOnResourceSiteOrPort: isOnResourceSiteOrPort,
+            isInsideSpecialBuildBlockZone: isInsideSpecialBuildBlockZone,
+            hasMapRuleBlock: hasMapRuleBlock,
+            mapBlockingTag: mapBlockingTag
         );
     }
 
