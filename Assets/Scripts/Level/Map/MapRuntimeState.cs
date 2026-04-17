@@ -12,6 +12,12 @@ public sealed class MapRuntimeState
     public bool RetainTransitionBridgeSources => retainTransitionBridgeSources;
     public bool Chapter1SpatialFactConsolidationReady => chapter1SpatialFactConsolidationReady;
 
+    public void SetFormalExpansionBoundarySnapshot(bool hasSnapshot, int allowedBuildRingRadius)
+    {
+        hasFormalExpansionBoundarySnapshot = hasSnapshot;
+        temporaryAllowedBuildRingRadius = Mathf.Max(0, allowedBuildRingRadius);
+    }
+
     public bool TryResolveExpansionBoundaryFact(HexCell hexCell, out bool isWithinExpansionBoundary)
     {
         if (!hasFormalExpansionBoundarySnapshot)

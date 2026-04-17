@@ -7,8 +7,22 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
     [SerializeField] private MapRuntimeState runtimeState = new MapRuntimeState();
     [SerializeField] private MapPoiRegistry poiRegistry = new MapPoiRegistry();
     [SerializeField] private PathTopology pathTopology = new PathTopology();
+    [SerializeField] private bool feedFormalExpansionBoundarySnapshot;
+    [SerializeField] private int formalExpansionBoundaryAllowedBuildRingRadius = 8;
 
     public MapDefinition MapDefinition => mapDefinition;
+
+    void Awake()
+    {
+        ApplyFormalExpansionBoundarySnapshotFeed();
+    }
+
+#if UNITY_EDITOR
+    void OnValidate()
+    {
+        ApplyFormalExpansionBoundarySnapshotFeed();
+    }
+#endif
 
     public MapRuntimeState RuntimeState
     {
@@ -22,6 +36,7 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
                     new MapRuntimeState();
             }
 
+            ApplyFormalExpansionBoundarySnapshotFeed();
             return runtimeState;
         }
     }
@@ -56,5 +71,16 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
 
             return pathTopology;
         }
+    }
+
+    void ApplyFormalExpansionBoundarySnapshotFeed()
+    {
+        if (runtimeState == null)
+            runtimeState = new MapRuntimeState();
+
+        runtimeState.SetFormalExpansionBoundarySnapshot(
+            feedFormalExpansionBoundarySnapshot,
+            formalExpansionBoundaryAllowedBuildRingRadius
+        );
     }
 }
