@@ -15,12 +15,14 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
     void Awake()
     {
         ApplyFormalExpansionBoundarySnapshotFeed();
+        ApplyPoiRegistryRuntimeBinding();
     }
 
 #if UNITY_EDITOR
     void OnValidate()
     {
         ApplyFormalExpansionBoundarySnapshotFeed();
+        ApplyPoiRegistryRuntimeBinding();
     }
 #endif
 
@@ -45,14 +47,7 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
     {
         get
         {
-            if (poiRegistry == null)
-            {
-                poiRegistry =
-                    mapDefinition != null && mapDefinition.PoiRegistry != null ?
-                    mapDefinition.PoiRegistry :
-                    new MapPoiRegistry();
-            }
-
+            ApplyPoiRegistryRuntimeBinding();
             return poiRegistry;
         }
     }
@@ -82,5 +77,19 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
             feedFormalExpansionBoundarySnapshot,
             formalExpansionBoundaryAllowedBuildRingRadius
         );
+    }
+
+    void ApplyPoiRegistryRuntimeBinding()
+    {
+        if (mapDefinition != null && mapDefinition.PoiRegistry != null)
+            poiRegistry = mapDefinition.PoiRegistry;
+        else if (poiRegistry == null)
+            poiRegistry = new MapPoiRegistry();
+
+        if (poiRegistry == null)
+            return;
+
+        bool allowTransitionBridgeFallback = runtimeState == null || runtimeState.RetainTransitionBridgeSources;
+        poiRegistry.SetTransitionBridgeFallbackEnabled(allowTransitionBridgeFallback);
     }
 }
