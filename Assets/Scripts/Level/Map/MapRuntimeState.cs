@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 [Serializable]
@@ -8,6 +9,8 @@ public sealed class MapRuntimeState
     [SerializeField] private bool chapter1SpatialFactConsolidationReady;
     [SerializeField] private bool hasFormalExpansionBoundarySnapshot;
     [SerializeField] private int temporaryAllowedBuildRingRadius = 8;
+    [SerializeField] private bool hasFormalSpecialBuildBlockSnapshot;
+    [SerializeField] private List<Vector2Int> specialBuildBlockCellCoordinates = new List<Vector2Int>();
 
     public bool RetainTransitionBridgeSources => retainTransitionBridgeSources;
     public bool Chapter1SpatialFactConsolidationReady => chapter1SpatialFactConsolidationReady;
@@ -34,6 +37,25 @@ public sealed class MapRuntimeState
 
         int ring = CubeRing(hexCell.GridX, hexCell.GridY);
         isWithinExpansionBoundary = ring <= Mathf.Max(0, temporaryAllowedBuildRingRadius);
+        return true;
+    }
+
+    public bool TryResolveSpecialBuildBlockFact(HexCell hexCell, out bool isInsideSpecialBuildBlockZone)
+    {
+        if (!hasFormalSpecialBuildBlockSnapshot)
+        {
+            isInsideSpecialBuildBlockZone = false;
+            return false;
+        }
+
+        if (hexCell == null)
+        {
+            isInsideSpecialBuildBlockZone = false;
+            return true;
+        }
+
+        var cellCoordinate = new Vector2Int(hexCell.GridX, hexCell.GridY);
+        isInsideSpecialBuildBlockZone = specialBuildBlockCellCoordinates.Contains(cellCoordinate);
         return true;
     }
 

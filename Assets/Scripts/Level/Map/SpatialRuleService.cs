@@ -102,7 +102,7 @@ public static class SpatialRuleService
     {
         BattlefieldMapRuntimeHost runtimeHost = ResolveRuntimeHost(hexCell);
         bool isWithinExpansionBoundary = ReadExpansionBoundaryFact(hexCell, runtimeHost);
-        bool isInsideSpecialBuildBlockZone = ReadSpecialBuildBlockTransitionFact(hexCell);
+        bool isInsideSpecialBuildBlockZone = ReadSpecialBuildBlockFact(hexCell, runtimeHost);
         bool isInsideNestBuffer = ReadNestBufferTransitionFact(hexCell);
         bool isOnResourceSiteOrPort = ReadPoiTransitionFact(hexCell, runtimeHost);
         bool hasMapRuleBlock =
@@ -146,7 +146,20 @@ public static class SpatialRuleService
         return provider == null || provider.IsWithinTemporaryAllowedBuildBoundary(hexCell);
     }
 
-    static bool ReadSpecialBuildBlockTransitionFact(HexCell hexCell)
+    static bool ReadSpecialBuildBlockFact(HexCell hexCell, BattlefieldMapRuntimeHost runtimeHost)
+    {
+        if (runtimeHost != null &&
+            runtimeHost.RuntimeState.TryResolveSpecialBuildBlockFact(
+                hexCell,
+                out bool isInsideSpecialBuildBlockZone))
+        {
+            return isInsideSpecialBuildBlockZone;
+        }
+
+        return ReadTransitionFallbackSpecialBuildBlockFact(hexCell);
+    }
+
+    static bool ReadTransitionFallbackSpecialBuildBlockFact(HexCell hexCell)
     {
         return hexCell != null && hexCell.GetComponent<HexSpecialBuildBlockMarker>() != null;
     }
