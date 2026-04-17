@@ -68,8 +68,6 @@ public readonly struct BattlefieldMapBuildFacts
 
 public static class SpatialRuleService
 {
-    static readonly MapPoiRegistry DefaultPoiRegistry = new MapPoiRegistry();
-
     static readonly MapFactTransitionEntry[] TransitionEntries =
     {
         new MapFactTransitionEntry(
@@ -102,10 +100,11 @@ public static class SpatialRuleService
 
     public static BattlefieldMapBuildFacts ResolveBuildFacts(HexCell hexCell)
     {
+        BattlefieldMapRuntimeHost runtimeHost = ResolveRuntimeHost(hexCell);
         bool isWithinExpansionBoundary = ReadExpansionBoundaryTransitionFact(hexCell);
         bool isInsideSpecialBuildBlockZone = ReadSpecialBuildBlockTransitionFact(hexCell);
         bool isInsideNestBuffer = ReadNestBufferTransitionFact(hexCell);
-        bool isOnResourceSiteOrPort = DefaultPoiRegistry.ReadTransitionBridgePoi(hexCell).HasPoi;
+        bool isOnResourceSiteOrPort = ReadPoiTransitionFact(hexCell, runtimeHost);
         bool hasMapRuleBlock =
             !isWithinExpansionBoundary || isInsideSpecialBuildBlockZone || isInsideNestBuffer;
         MapBlockingTag mapBlockingTag =
@@ -124,6 +123,11 @@ public static class SpatialRuleService
         );
     }
 
+    static BattlefieldMapRuntimeHost ResolveRuntimeHost(HexCell hexCell)
+    {
+        return hexCell != null ? hexCell.GetComponentInParent<BattlefieldMapRuntimeHost>() : null;
+    }
+
     static bool ReadExpansionBoundaryTransitionFact(HexCell hexCell)
     {
         var provider =
@@ -139,5 +143,18 @@ public static class SpatialRuleService
     static bool ReadNestBufferTransitionFact(HexCell hexCell)
     {
         return hexCell != null && hexCell.GetComponent<HexNestBufferMarker>() != null;
+    }
+
+    static bool ReadPoiTransitionFact(HexCell hexCell, BattlefieldMapRuntimeHost runtimeHost)
+    {
+        if (runtimeHost != null)
+            return runtimeHost.PoiRegistry.ReadTransitionBridgePoi(hexCell).HasPoi;
+
+        return ReadTransitionFallbackPoiFact(hexCell);
+    }
+
+    static bool ReadTransitionFallbackPoiFact(HexCell hexCell)
+    {
+        return hexCell != null && hexCell.GetComponent<HexResourceSiteOrPortMarker>() != null;
     }
 }

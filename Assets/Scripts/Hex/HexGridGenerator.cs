@@ -34,6 +34,8 @@ public class HexGridGenerator : MonoBehaviour
 
     void Start()
     {
+        EnsureRuntimeHost();
+
         if (gridManager == null)
             gridManager = FindObjectOfType<HexGridManager>();
 
@@ -105,5 +107,11 @@ public class HexGridGenerator : MonoBehaviour
         float x = R * (sqrt3 * q + sqrt3 * 0.5f * r);
         float z = R * (1.5f * r);
         return new Vector3(x, 0f, z) + transform.position;
+    }
+
+    void EnsureRuntimeHost()
+    {
+        if (GetComponent<BattlefieldMapRuntimeHost>() == null)
+            gameObject.AddComponent<BattlefieldMapRuntimeHost>();
     }
 }
