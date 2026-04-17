@@ -11,6 +11,8 @@ public sealed class MapRuntimeState
     [SerializeField] private int temporaryAllowedBuildRingRadius = 8;
     [SerializeField] private bool hasFormalSpecialBuildBlockSnapshot;
     [SerializeField] private List<Vector2Int> specialBuildBlockCellCoordinates = new List<Vector2Int>();
+    [SerializeField] private bool hasFormalNestBufferSnapshot;
+    [SerializeField] private List<Vector2Int> nestBufferCellCoordinates = new List<Vector2Int>();
 
     public bool RetainTransitionBridgeSources => retainTransitionBridgeSources;
     public bool Chapter1SpatialFactConsolidationReady => chapter1SpatialFactConsolidationReady;
@@ -56,6 +58,25 @@ public sealed class MapRuntimeState
 
         var cellCoordinate = new Vector2Int(hexCell.GridX, hexCell.GridY);
         isInsideSpecialBuildBlockZone = specialBuildBlockCellCoordinates.Contains(cellCoordinate);
+        return true;
+    }
+
+    public bool TryResolveNestBufferFact(HexCell hexCell, out bool isInsideNestBuffer)
+    {
+        if (!hasFormalNestBufferSnapshot)
+        {
+            isInsideNestBuffer = false;
+            return false;
+        }
+
+        if (hexCell == null)
+        {
+            isInsideNestBuffer = false;
+            return true;
+        }
+
+        var cellCoordinate = new Vector2Int(hexCell.GridX, hexCell.GridY);
+        isInsideNestBuffer = nestBufferCellCoordinates.Contains(cellCoordinate);
         return true;
     }
 
