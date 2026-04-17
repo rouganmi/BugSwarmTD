@@ -101,7 +101,7 @@ public static class SpatialRuleService
     public static BattlefieldMapBuildFacts ResolveBuildFacts(HexCell hexCell)
     {
         BattlefieldMapRuntimeHost runtimeHost = ResolveRuntimeHost(hexCell);
-        bool isWithinExpansionBoundary = ReadExpansionBoundaryTransitionFact(hexCell);
+        bool isWithinExpansionBoundary = ReadExpansionBoundaryFact(hexCell, runtimeHost);
         bool isInsideSpecialBuildBlockZone = ReadSpecialBuildBlockTransitionFact(hexCell);
         bool isInsideNestBuffer = ReadNestBufferTransitionFact(hexCell);
         bool isOnResourceSiteOrPort = ReadPoiTransitionFact(hexCell, runtimeHost);
@@ -128,7 +128,18 @@ public static class SpatialRuleService
         return hexCell != null ? hexCell.GetComponentInParent<BattlefieldMapRuntimeHost>() : null;
     }
 
-    static bool ReadExpansionBoundaryTransitionFact(HexCell hexCell)
+    static bool ReadExpansionBoundaryFact(HexCell hexCell, BattlefieldMapRuntimeHost runtimeHost)
+    {
+        if (runtimeHost != null &&
+            runtimeHost.RuntimeState.TryResolveExpansionBoundaryFact(hexCell, out bool isWithinExpansionBoundary))
+        {
+            return isWithinExpansionBoundary;
+        }
+
+        return ReadTransitionFallbackExpansionBoundaryFact(hexCell);
+    }
+
+    static bool ReadTransitionFallbackExpansionBoundaryFact(HexCell hexCell)
     {
         var provider =
             hexCell != null ? hexCell.GetComponentInParent<HexGridExpansionBoundaryProvider>() : null;
