@@ -57,6 +57,32 @@ public sealed class MapRuntimeState
         );
     }
 
+    public void SetFormalNestBufferSnapshot(
+        bool hasSnapshot,
+        IReadOnlyList<Vector2Int> bufferedCellCoordinates)
+    {
+        hasFormalNestBufferSnapshot = hasSnapshot;
+
+        if (nestBufferCellCoordinates == null)
+            nestBufferCellCoordinates = new List<Vector2Int>();
+        else
+            nestBufferCellCoordinates.Clear();
+
+        if (bufferedCellCoordinates == null)
+            return;
+
+        for (int i = 0; i < bufferedCellCoordinates.Count; i++)
+            nestBufferCellCoordinates.Add(bufferedCellCoordinates[i]);
+    }
+
+    public void SetFormalNestBufferSnapshot(MapNestBufferDefinition definition)
+    {
+        SetFormalNestBufferSnapshot(
+            definition.HasFormalNestBufferSnapshot,
+            definition.BufferedCellCoordinates
+        );
+    }
+
     public bool TryResolveExpansionBoundaryFact(HexCell hexCell, out bool isWithinExpansionBoundary)
     {
         if (!hasFormalExpansionBoundarySnapshot)

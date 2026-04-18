@@ -16,6 +16,7 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
     {
         ApplyFormalExpansionBoundarySnapshotFeed();
         ApplyFormalSpecialBuildBlockSnapshotFeed();
+        ApplyFormalNestBufferSnapshotFeed();
         ApplyPoiRegistryRuntimeBinding();
     }
 
@@ -24,6 +25,7 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
     {
         ApplyFormalExpansionBoundarySnapshotFeed();
         ApplyFormalSpecialBuildBlockSnapshotFeed();
+        ApplyFormalNestBufferSnapshotFeed();
         ApplyPoiRegistryRuntimeBinding();
     }
 #endif
@@ -42,6 +44,7 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
 
             ApplyFormalExpansionBoundarySnapshotFeed();
             ApplyFormalSpecialBuildBlockSnapshotFeed();
+            ApplyFormalNestBufferSnapshotFeed();
             return runtimeState;
         }
     }
@@ -115,6 +118,20 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
         }
 
         runtimeState.SetFormalSpecialBuildBlockSnapshot(definition);
+    }
+
+    void ApplyFormalNestBufferSnapshotFeed()
+    {
+        if (runtimeState == null)
+            runtimeState = new MapRuntimeState();
+
+        if (mapDefinition == null ||
+            !mapDefinition.TryGetNestBufferDefinition(out MapNestBufferDefinition definition))
+        {
+            return;
+        }
+
+        runtimeState.SetFormalNestBufferSnapshot(definition);
     }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
