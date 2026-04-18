@@ -31,6 +31,32 @@ public sealed class MapRuntimeState
         );
     }
 
+    public void SetFormalSpecialBuildBlockSnapshot(
+        bool hasSnapshot,
+        IReadOnlyList<Vector2Int> blockedCellCoordinates)
+    {
+        hasFormalSpecialBuildBlockSnapshot = hasSnapshot;
+
+        if (specialBuildBlockCellCoordinates == null)
+            specialBuildBlockCellCoordinates = new List<Vector2Int>();
+        else
+            specialBuildBlockCellCoordinates.Clear();
+
+        if (blockedCellCoordinates == null)
+            return;
+
+        for (int i = 0; i < blockedCellCoordinates.Count; i++)
+            specialBuildBlockCellCoordinates.Add(blockedCellCoordinates[i]);
+    }
+
+    public void SetFormalSpecialBuildBlockSnapshot(MapSpecialBuildBlockDefinition definition)
+    {
+        SetFormalSpecialBuildBlockSnapshot(
+            definition.HasFormalSpecialBuildBlockSnapshot,
+            definition.BlockedCellCoordinates
+        );
+    }
+
     public bool TryResolveExpansionBoundaryFact(HexCell hexCell, out bool isWithinExpansionBoundary)
     {
         if (!hasFormalExpansionBoundarySnapshot)

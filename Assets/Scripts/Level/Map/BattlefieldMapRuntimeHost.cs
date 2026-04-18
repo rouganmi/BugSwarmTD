@@ -15,6 +15,7 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
     void Awake()
     {
         ApplyFormalExpansionBoundarySnapshotFeed();
+        ApplyFormalSpecialBuildBlockSnapshotFeed();
         ApplyPoiRegistryRuntimeBinding();
     }
 
@@ -22,6 +23,7 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
     void OnValidate()
     {
         ApplyFormalExpansionBoundarySnapshotFeed();
+        ApplyFormalSpecialBuildBlockSnapshotFeed();
         ApplyPoiRegistryRuntimeBinding();
     }
 #endif
@@ -39,6 +41,7 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
             }
 
             ApplyFormalExpansionBoundarySnapshotFeed();
+            ApplyFormalSpecialBuildBlockSnapshotFeed();
             return runtimeState;
         }
     }
@@ -98,6 +101,20 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
 
         bool allowTransitionBridgeFallback = runtimeState == null || runtimeState.RetainTransitionBridgeSources;
         poiRegistry.SetTransitionBridgeFallbackEnabled(allowTransitionBridgeFallback);
+    }
+
+    void ApplyFormalSpecialBuildBlockSnapshotFeed()
+    {
+        if (runtimeState == null)
+            runtimeState = new MapRuntimeState();
+
+        if (mapDefinition == null ||
+            !mapDefinition.TryGetSpecialBuildBlockDefinition(out MapSpecialBuildBlockDefinition definition))
+        {
+            return;
+        }
+
+        runtimeState.SetFormalSpecialBuildBlockSnapshot(definition);
     }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
