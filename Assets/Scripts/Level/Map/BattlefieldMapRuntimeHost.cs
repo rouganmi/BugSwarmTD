@@ -7,8 +7,11 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
     [SerializeField] private MapRuntimeState runtimeState = new MapRuntimeState();
     [SerializeField] private MapPoiRegistry poiRegistry = new MapPoiRegistry();
     [SerializeField] private PathTopology pathTopology = new PathTopology();
-    [SerializeField] private bool feedFormalExpansionBoundarySnapshot;
-    [SerializeField] private int formalExpansionBoundaryAllowedBuildRingRadius = 8;
+    [Header("Expansion Boundary Fallback / Debug Feed")]
+    [Tooltip("Fallback/debug-only expansion-boundary source. Used only when the assigned MapDefinition does not author an expansion-boundary definition.")]
+    [SerializeField] private bool fallbackDebugFeedFormalExpansionBoundarySnapshot;
+    [Tooltip("Fallback/debug-only ring radius. Used only when the assigned MapDefinition does not author an expansion-boundary definition.")]
+    [SerializeField] private int fallbackDebugFormalExpansionBoundaryAllowedBuildRingRadius = 8;
 
     public MapDefinition MapDefinition => mapDefinition;
 
@@ -79,16 +82,33 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
         if (runtimeState == null)
             runtimeState = new MapRuntimeState();
 
-        if (mapDefinition != null &&
-            mapDefinition.TryGetExpansionBoundaryDefinition(out MapExpansionBoundaryDefinition definition))
-        {
-            runtimeState.SetFormalExpansionBoundarySnapshot(definition);
+        // Preferred source hierarchy:
+        // 1. MapDefinition-authored expansion-boundary definition
+        // 2. Runtime-host inspector fallback/debug feed
+        // 3. HexGridExpansionBoundaryProvider transition fallback in SpatialRuleService
+        if (TryApplyAuthoredExpansionBoundarySnapshot())
             return;
+
+        ApplyFallbackDebugExpansionBoundarySnapshotFeed();
+    }
+
+    bool TryApplyAuthoredExpansionBoundarySnapshot()
+    {
+        if (mapDefinition == null ||
+            !mapDefinition.TryGetExpansionBoundaryDefinition(out MapExpansionBoundaryDefinition definition))
+        {
+            return false;
         }
 
+        runtimeState.SetFormalExpansionBoundarySnapshot(definition);
+        return true;
+    }
+
+    void ApplyFallbackDebugExpansionBoundarySnapshotFeed()
+    {
         runtimeState.SetFormalExpansionBoundarySnapshot(
-            feedFormalExpansionBoundarySnapshot,
-            formalExpansionBoundaryAllowedBuildRingRadius
+            fallbackDebugFeedFormalExpansionBoundarySnapshot,
+            fallbackDebugFormalExpansionBoundaryAllowedBuildRingRadius
         );
     }
 

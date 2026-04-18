@@ -5,8 +5,11 @@ using UnityEngine;
 [Serializable]
 public struct MapExpansionBoundaryDefinition
 {
+    [Tooltip("Preferred authored source for the formal expansion-boundary snapshot. When disabled, the runtime host may supply its fallback/debug-only feed instead.")]
     [SerializeField] private bool hasDefinition;
+    [Tooltip("Enables the formal ring-based expansion-boundary snapshot authored on the MapDefinition asset.")]
     [SerializeField] private bool hasFormalExpansionBoundarySnapshot;
+    [Tooltip("Ring radius used by the formal expansion-boundary snapshot when the MapDefinition-authored source is enabled.")]
     [SerializeField] private int allowedBuildRingRadius;
 
     public bool HasDefinition => hasDefinition;
@@ -42,6 +45,7 @@ public struct MapNestBufferDefinition
 public sealed class MapDefinition : ScriptableObject
 {
     [SerializeField] private string mapId = "chapter1_battlefield";
+    [Header("Preferred Authored Sources")]
     [SerializeField] private MapExpansionBoundaryDefinition expansionBoundaryDefinition;
     [SerializeField] private MapSpecialBuildBlockDefinition specialBuildBlockDefinition;
     [SerializeField] private MapNestBufferDefinition nestBufferDefinition;

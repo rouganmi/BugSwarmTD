@@ -136,6 +136,7 @@ public static class SpatialRuleService
             return isWithinExpansionBoundary;
         }
 
+        // Provider remains transition fallback only when no formal snapshot is available via runtime state.
         return ReadTransitionFallbackExpansionBoundaryFact(hexCell);
     }
 
