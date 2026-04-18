@@ -2541,6 +2541,7 @@ GameObject:
   - component: {fileID: 771200002}
   - component: {fileID: 771200003}
   - component: {fileID: 771200004}
+  - component: {fileID: 771200005}
   m_Layer: 0
   m_Name: HexGrid
   m_TagString: Untagged
@@ -2597,6 +2598,29 @@ MonoBehaviour:
   clickCamera: {fileID: 330585545}
   raycastDistance: 500
   towerSelector: {fileID: 0}
+--- !u!114 &771200005
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 771200001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d1c41ecfe0194b20ba0ef8f8c9f6c8aa, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  raycastCamera: {fileID: 0}
+  raycastDistance: 500
+  raycastMask:
+    serializedVersion: 2
+    m_Bits: 251
+  ignorePointerOverUi: 1
+  observeHoveredHex: 1
+  observeClickedHex: 1
+  clickMouseButton: 0
+  logToConsole: 1
+  drawOverlay: 1
 --- !u!1 &832575517
 GameObject:
   m_ObjectHideFlags: 0
@@ -2703,20 +2727,6 @@ MonoBehaviour:
   tankDamagePerWave: 0.42
   nightLeadInSeconds: 0
   requireConfirmationForNightWave: 0
---- !u!114 &1999999999
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 873898916}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fb60b1aee19e6a44484acb61d2941de5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  defaultChapterId: Chapter1
-  defaultNodeId: Node1
 --- !u!4 &873898918
 Transform:
   m_ObjectHideFlags: 0
@@ -5183,6 +5193,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1999999999
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 873898916}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb60b1aee19e6a44484acb61d2941de5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  defaultChapterId: Chapter1
+  defaultNodeId: Node1
 --- !u!1 &2133740600
 GameObject:
   m_ObjectHideFlags: 0

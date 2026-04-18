@@ -55,6 +55,47 @@ public sealed class MapPoiRegistry
         return default;
     }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    public PoiDebugObservation ObservePoiResolution(HexCell hexCell, bool hasAssignedMapDefinition)
+    {
+        MapPoiFact poiFact;
+        PoiDebugObservationSource source;
+        if (TryReadFormalPoiFact(hexCell, out poiFact))
+        {
+            source =
+                poiFact.HasPoi ?
+                PoiDebugObservationSource.FormalSnapshotHit :
+                PoiDebugObservationSource.FormalSnapshotNoPoi;
+        }
+        else if (_allowTransitionBridgeFallback)
+        {
+            poiFact = ReadTransitionBridgePoiFallback(hexCell);
+            source =
+                poiFact.HasPoi ?
+                PoiDebugObservationSource.FallbackMarkerHit :
+                PoiDebugObservationSource.NoPoi;
+        }
+        else
+        {
+            poiFact = default;
+            source = PoiDebugObservationSource.NoPoi;
+        }
+
+        Vector2Int hexCoordinates =
+            hexCell != null ?
+            new Vector2Int(hexCell.GridX, hexCell.GridY) :
+            default;
+        return new PoiDebugObservation(
+            hexCoordinates,
+            hasAssignedMapDefinition,
+            hasFormalPoiSnapshot,
+            poiFact.HasPoi,
+            poiFact.PoiType,
+            source
+        );
+    }
+#endif
+
     bool TryReadFormalPoiFact(HexCell hexCell, out MapPoiFact poiFact)
     {
         if (!hasFormalPoiSnapshot)

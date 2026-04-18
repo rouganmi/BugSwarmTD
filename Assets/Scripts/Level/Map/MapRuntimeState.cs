@@ -23,6 +23,14 @@ public sealed class MapRuntimeState
         temporaryAllowedBuildRingRadius = Mathf.Max(0, allowedBuildRingRadius);
     }
 
+    public void SetFormalExpansionBoundarySnapshot(MapExpansionBoundaryDefinition definition)
+    {
+        SetFormalExpansionBoundarySnapshot(
+            definition.HasFormalExpansionBoundarySnapshot,
+            definition.AllowedBuildRingRadius
+        );
+    }
+
     public bool TryResolveExpansionBoundaryFact(HexCell hexCell, out bool isWithinExpansionBoundary)
     {
         if (!hasFormalExpansionBoundarySnapshot)

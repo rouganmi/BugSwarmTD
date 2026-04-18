@@ -190,6 +190,45 @@ public static class SpatialRuleService
 
     static bool ReadTransitionFallbackPoiFact(HexCell hexCell)
     {
-        return hexCell != null && hexCell.GetComponent<HexResourceSiteOrPortMarker>() != null;
+        return ReadTransitionFallbackPoi(hexCell).HasPoi;
     }
+
+    static MapPoiFact ReadTransitionFallbackPoi(HexCell hexCell)
+    {
+        if (hexCell == null)
+            return default;
+
+        var marker = hexCell.GetComponent<HexResourceSiteOrPortMarker>();
+        if (marker == null)
+            return default;
+
+        MapPoiType poiType =
+            marker.Type == HexResourceSiteOrPortType.ResourcePort ?
+            MapPoiType.ResourcePort :
+            MapPoiType.ResourceSite;
+        return new MapPoiFact(true, poiType);
+    }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    public static PoiDebugObservation ObservePoiResolution(HexCell hexCell)
+    {
+        BattlefieldMapRuntimeHost runtimeHost = ResolveRuntimeHost(hexCell);
+        if (runtimeHost != null)
+            return runtimeHost.ObservePoiResolution(hexCell);
+
+        MapPoiFact fallbackPoi = ReadTransitionFallbackPoi(hexCell);
+        Vector2Int hexCoordinates =
+            hexCell != null ?
+            new Vector2Int(hexCell.GridX, hexCell.GridY) :
+            default;
+        return new PoiDebugObservation(
+            hexCoordinates,
+            false,
+            false,
+            fallbackPoi.HasPoi,
+            fallbackPoi.PoiType,
+            fallbackPoi.HasPoi ? PoiDebugObservationSource.FallbackMarkerHit : PoiDebugObservationSource.NoPoi
+        );
+    }
+#endif
 }

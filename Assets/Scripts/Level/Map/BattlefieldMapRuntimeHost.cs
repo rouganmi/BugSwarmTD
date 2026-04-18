@@ -73,6 +73,13 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
         if (runtimeState == null)
             runtimeState = new MapRuntimeState();
 
+        if (mapDefinition != null &&
+            mapDefinition.TryGetExpansionBoundaryDefinition(out MapExpansionBoundaryDefinition definition))
+        {
+            runtimeState.SetFormalExpansionBoundarySnapshot(definition);
+            return;
+        }
+
         runtimeState.SetFormalExpansionBoundarySnapshot(
             feedFormalExpansionBoundarySnapshot,
             formalExpansionBoundaryAllowedBuildRingRadius
@@ -92,4 +99,24 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
         bool allowTransitionBridgeFallback = runtimeState == null || runtimeState.RetainTransitionBridgeSources;
         poiRegistry.SetTransitionBridgeFallbackEnabled(allowTransitionBridgeFallback);
     }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    public PoiDebugObservation ObservePoiResolution(HexCell hexCell)
+    {
+        ApplyPoiRegistryRuntimeBinding();
+        if (poiRegistry == null)
+        {
+            return new PoiDebugObservation(
+                hexCell != null ? new Vector2Int(hexCell.GridX, hexCell.GridY) : default,
+                mapDefinition != null,
+                false,
+                false,
+                MapPoiType.None,
+                PoiDebugObservationSource.NoPoi
+            );
+        }
+
+        return poiRegistry.ObservePoiResolution(hexCell, mapDefinition != null);
+    }
+#endif
 }
