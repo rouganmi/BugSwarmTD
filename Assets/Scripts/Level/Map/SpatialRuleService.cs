@@ -136,7 +136,11 @@ public static class SpatialRuleService
             return isWithinExpansionBoundary;
         }
 
-        // Provider remains transition fallback only when runtime state has no authored-owned boundary decision.
+        if (runtimeHost == null || !runtimeHost.AllowProviderExpansionBoundaryFallback)
+            return true;
+
+        // Provider remains transition fallback only when runtime state has no authored-owned boundary decision
+        // and the runtime host explicitly allows the no-authored compatibility path.
         return ReadTransitionFallbackExpansionBoundaryFact(hexCell);
     }
 

@@ -8,12 +8,17 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
     [SerializeField] private MapPoiRegistry poiRegistry = new MapPoiRegistry();
     [SerializeField] private PathTopology pathTopology = new PathTopology();
     [Header("Expansion Boundary Fallback / Debug Feed")]
+    [Tooltip("Explicitly allows the host fallback/debug expansion-boundary feed when the assigned MapDefinition has no authored expansion-boundary definition.")]
+    [SerializeField] private bool allowFallbackDebugExpansionBoundaryFeed;
+    [Tooltip("Explicitly allows SpatialRuleService to use HexGridExpansionBoundaryProvider as the no-authored expansion-boundary transition fallback.")]
+    [SerializeField] private bool allowProviderExpansionBoundaryFallback;
     [Tooltip("Fallback/debug-only expansion-boundary source. Used only when the assigned MapDefinition does not author an expansion-boundary definition.")]
     [SerializeField] private bool fallbackDebugFeedFormalExpansionBoundarySnapshot;
     [Tooltip("Fallback/debug-only ring radius. Used only when the assigned MapDefinition does not author an expansion-boundary definition.")]
     [SerializeField] private int fallbackDebugFormalExpansionBoundaryAllowedBuildRingRadius = 8;
 
     public MapDefinition MapDefinition => mapDefinition;
+    public bool AllowProviderExpansionBoundaryFallback => allowProviderExpansionBoundaryFallback;
 
     void Awake()
     {
@@ -84,8 +89,8 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
 
         // Preferred source hierarchy:
         // 1. MapDefinition-authored expansion-boundary definition
-        // 2. Runtime-host inspector fallback/debug feed, only when no authored definition exists
-        // 3. HexGridExpansionBoundaryProvider transition fallback in SpatialRuleService
+        // 2. Explicitly gated runtime-host inspector fallback/debug feed, only when no authored definition exists
+        // 3. Explicitly gated HexGridExpansionBoundaryProvider transition fallback in SpatialRuleService
         if (TryApplyAuthoredExpansionBoundarySnapshot())
             return;
 
@@ -106,6 +111,15 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
 
     void ApplyFallbackDebugExpansionBoundarySnapshotFeed()
     {
+        if (!allowFallbackDebugExpansionBoundaryFeed)
+        {
+            runtimeState.SetFormalExpansionBoundarySnapshot(
+                false,
+                fallbackDebugFormalExpansionBoundaryAllowedBuildRingRadius
+            );
+            return;
+        }
+
         runtimeState.SetFormalExpansionBoundarySnapshot(
             fallbackDebugFeedFormalExpansionBoundarySnapshot,
             fallbackDebugFormalExpansionBoundaryAllowedBuildRingRadius
