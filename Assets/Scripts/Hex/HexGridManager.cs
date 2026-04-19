@@ -160,6 +160,7 @@ public class HexGridManager : MonoBehaviour
                 _loggedTowerUiHoverSuspend = true;
                 Debug.Log("[HexHover] Suspended because TowerUI is open");
             }
+            SetBoundaryBlockedHover(null);
             SetHoveredCell(null);
             return;
         }
@@ -168,6 +169,7 @@ public class HexGridManager : MonoBehaviour
 
         if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
         {
+            SetBoundaryBlockedHover(null);
             SetHoveredCell(null);
             return;
         }
@@ -175,6 +177,7 @@ public class HexGridManager : MonoBehaviour
         Camera cam = clickCamera != null ? clickCamera : Camera.main;
         if (cam == null)
         {
+            SetBoundaryBlockedHover(null);
             SetHoveredCell(null);
             return;
         }
@@ -194,7 +197,7 @@ public class HexGridManager : MonoBehaviour
             BuildSpot hoverSpot = hitCell.GetBuildSpot();
             if (hoverSpot != null && IsExpansionBoundaryBlocked(hoverSpot))
             {
-                LogBoundaryBlockedHover(hitCell);
+                SetBoundaryBlockedHover(hitCell);
                 hitCell = null;
             }
             else if (!hitCell.HasAvailableBuildSpot())
@@ -203,24 +206,31 @@ public class HexGridManager : MonoBehaviour
             }
             else
             {
-                _blockedHoveredCell = null;
+                SetBoundaryBlockedHover(null);
             }
         }
         else
         {
-            _blockedHoveredCell = null;
+            SetBoundaryBlockedHover(null);
         }
 
         SetHoveredCell(hitCell);
     }
 
-    void LogBoundaryBlockedHover(HexCell cell)
+    void SetBoundaryBlockedHover(HexCell cell)
     {
         if (_blockedHoveredCell == cell)
             return;
 
+        if (_blockedHoveredCell != null)
+            _blockedHoveredCell.SetBlockedHighlightState(false);
+
         _blockedHoveredCell = cell;
-        Debug.Log($"[HexHover] Expansion boundary blocked at {cell.GridX},{cell.GridY}");
+        if (_blockedHoveredCell == null)
+            return;
+
+        _blockedHoveredCell.SetBlockedHighlightState(true);
+        Debug.Log($"[HexHover] Expansion boundary blocked at {_blockedHoveredCell.GridX},{_blockedHoveredCell.GridY}");
     }
 
     void SetHoveredCell(HexCell newHovered)
@@ -234,7 +244,10 @@ public class HexGridManager : MonoBehaviour
         _hoveredCell = newHovered;
 
         if (_hoveredCell != null)
+        {
+            SetBoundaryBlockedHover(null);
             _hoveredCell.SetHighlightState(true);
+        }
     }
 
     /// <summary>建塔成功后由 HexCell 调用：同步悬停引用（视觉已在 NotifyTowerPlaced 里 ClearHighlight）。</summary>

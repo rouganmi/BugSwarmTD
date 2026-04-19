@@ -36,6 +36,8 @@ public class HexCell : MonoBehaviour
     static readonly Color NonBuildableBase = new Color(0.20f, 0.24f, 0.30f, 1f);
     static readonly Color HighlightColor = new Color(0.05f, 0.92f, 0.55f, 1f);
     static readonly Color HighlightEmission = new Color(0.15f, 0.85f, 0.45f, 1f);
+    static readonly Color BlockedHighlightColor = new Color(0.95f, 0.22f, 0.16f, 1f);
+    static readonly Color BlockedHighlightEmission = new Color(0.85f, 0.08f, 0.04f, 1f);
     #endregion
 
     #region Unity lifecycle
@@ -207,6 +209,17 @@ public class HexCell : MonoBehaviour
         ClearHighlightVisual();
     }
 
+    public void SetBlockedHighlightState(bool highlighted)
+    {
+        if (highlighted)
+        {
+            ApplyBlockedHighlightVisual();
+            return;
+        }
+
+        ClearBlockedHighlightVisual();
+    }
+
     void ApplyHighlightVisual()
     {
         if (!_terrainBuildable || targetRenderer == null)
@@ -214,6 +227,24 @@ public class HexCell : MonoBehaviour
         PushColor(HighlightColor, useEmission: true);
         Vector3 p = transform.localPosition;
         p.y = _baseLocalY + selectedLift;
+        transform.localPosition = p;
+    }
+
+    void ApplyBlockedHighlightVisual()
+    {
+        if (targetRenderer == null)
+            return;
+        PushColor(BlockedHighlightColor, useEmission: true, BlockedHighlightEmission);
+    }
+
+    void ClearBlockedHighlightVisual()
+    {
+        if (targetRenderer == null)
+            return;
+
+        ApplyBaseVisual();
+        Vector3 p = transform.localPosition;
+        p.y = _baseLocalY;
         transform.localPosition = p;
     }
 
@@ -234,6 +265,11 @@ public class HexCell : MonoBehaviour
 
     void PushColor(Color c, bool useEmission)
     {
+        PushColor(c, useEmission, HighlightEmission);
+    }
+
+    void PushColor(Color c, bool useEmission, Color emissionColor)
+    {
         if (targetRenderer == null)
             return;
         var mat = targetRenderer.sharedMaterial;
@@ -250,7 +286,7 @@ public class HexCell : MonoBehaviour
                 _mpb.SetColor(ColorId, c);
             }
             if (mat.HasProperty(EmissionColorId))
-                _mpb.SetColor(EmissionColorId, useEmission ? HighlightEmission : Color.black);
+                _mpb.SetColor(EmissionColorId, useEmission ? emissionColor : Color.black);
         }
         targetRenderer.SetPropertyBlock(_mpb);
     }
