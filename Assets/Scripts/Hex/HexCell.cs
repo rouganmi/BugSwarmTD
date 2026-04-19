@@ -120,6 +120,8 @@ public class HexCell : MonoBehaviour
     /// <summary>地形允许且格上尚未建塔（与 BuildSpot 一致）。</summary>
     public bool CanPlaceTower() => _terrainBuildable && _buildSpot != null && _buildSpot.CanBuild();
 
+    public bool HasAvailableBuildSpot() => _buildSpot != null && _buildSpot.CanBuild();
+
     public BuildSpot GetBuildSpot() => _buildSpot;
 
     /// <summary>TowerBuilder 在成功放置后调用。</summary>

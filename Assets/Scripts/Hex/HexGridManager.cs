@@ -107,7 +107,7 @@ public class HexGridManager : MonoBehaviour
             towerSelector.OnBeforeHexCellWorldClick();
 
         BuildSpot buildSpot = cell.GetBuildSpot();
-        if (!cell.CanPlaceTower())
+        if (!cell.HasAvailableBuildSpot())
             return;
 
         if (buildSpot == null)
@@ -166,7 +166,7 @@ public class HexGridManager : MonoBehaviour
                 ?? hit.collider.GetComponentInChildren<HexCell>();
         }
 
-        if (hitCell != null && !hitCell.CanPlaceTower())
+        if (hitCell != null && !hitCell.HasAvailableBuildSpot())
             hitCell = null;
 
         SetHoveredCell(hitCell);

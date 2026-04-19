@@ -238,6 +238,12 @@ public class TowerBuilder : MonoBehaviour
             return;
         }
 
+        if (evaluation.HasMapRuleBlock)
+        {
+            Debug.LogWarning($"[TowerBuilder] Build failed: map rule block ({evaluation.MapBlockingTag})");
+            return;
+        }
+
         if (!evaluation.IsTerrainBuildable)
         {
             Debug.LogWarning("[TowerBuilder] Build failed: hex cell not buildable");

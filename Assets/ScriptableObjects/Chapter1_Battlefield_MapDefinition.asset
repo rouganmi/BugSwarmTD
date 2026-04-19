@@ -16,7 +16,7 @@ MonoBehaviour:
   expansionBoundaryDefinition:
     hasDefinition: 1
     hasFormalExpansionBoundarySnapshot: 1
-    allowedBuildRingRadius: 8
+    allowedBuildRingRadius: 7
   specialBuildBlockDefinition:
     hasDefinition: 0
     hasFormalSpecialBuildBlockSnapshot: 0
