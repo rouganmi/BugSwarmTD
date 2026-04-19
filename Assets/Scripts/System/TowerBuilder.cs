@@ -304,6 +304,18 @@ public class TowerBuilder : MonoBehaviour
                 if (_lastSpot != null && _lastSpot != spot)
                     _lastSpot.ApplyHover(false);
 
+                var evaluation = EvaluateBuildRequest(spot, towerPrefab, towerCost);
+                if (evaluation.HasMapRuleBlock &&
+                    evaluation.MapBlockingTag == MapBlockingTag.ExpansionBoundaryBlocked)
+                {
+                    currentSpot = null;
+                    _lastSpot = null;
+                    spot.ApplyHover(false);
+                    currentPreview.SetActive(false);
+                    _hasPreviewValidState = false;
+                    return;
+                }
+
                 currentSpot = spot;
                 _lastSpot = spot;
                 currentPreview.SetActive(true);

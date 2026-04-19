@@ -502,12 +502,7 @@ public class BuildSelectionUI : MonoBehaviour
             return false;
 
         var evaluation = towerBuilder.EvaluateBuildRequest(spot, null, 0);
-        bool canSurfaceBoundaryBlock =
-            evaluation.HasMapRuleBlock &&
-            evaluation.MapBlockingTag == MapBlockingTag.ExpansionBoundaryBlocked;
-        return evaluation.HasSpot &&
-            evaluation.IsSpotBuildable &&
-            (evaluation.IsTerrainBuildable || canSurfaceBoundaryBlock);
+        return evaluation.HasSpot && evaluation.IsTerrainBuildable && evaluation.IsSpotBuildable;
     }
 
     private bool TryEvaluateOption(BuildTowerOption option, out TowerBuilder.BuildSubmissionEvaluation evaluation)

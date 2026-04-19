@@ -14,9 +14,11 @@ public class HexGridManager : MonoBehaviour
     [SerializeField] float raycastDistance = 500f;
     [Tooltip("塔点击优先于 Hex；不绑则 FindObjectOfType")]
     [SerializeField] TowerSelector towerSelector;
+    [SerializeField] TowerBuilder towerBuilder;
 
     /// <summary>当前鼠标射线命中的可建空位格；仅用于悬停高亮，不表示“锁定选中”。</summary>
     HexCell _hoveredCell;
+    HexCell _blockedHoveredCell;
 
     bool _loggedTowerUiHoverSuspend;
 
@@ -33,6 +35,8 @@ public class HexGridManager : MonoBehaviour
 
         if (towerSelector == null)
             towerSelector = FindObjectOfType<TowerSelector>();
+        if (towerBuilder == null)
+            towerBuilder = FindObjectOfType<TowerBuilder>();
     }
 
     void OnDestroy()
@@ -116,6 +120,12 @@ public class HexGridManager : MonoBehaviour
             return;
         }
 
+        if (IsExpansionBoundaryBlocked(buildSpot))
+        {
+            Debug.Log($"[HexBuild] Blocked by expansion boundary at {cell.GridX},{cell.GridY}");
+            return;
+        }
+
         if (buildSelectionUi == null)
         {
             Debug.LogError("[HexBuild] Ignored: UI not resolved");
@@ -123,6 +133,19 @@ public class HexGridManager : MonoBehaviour
         }
 
         buildSelectionUi.OpenForSpot(buildSpot);
+    }
+
+    bool IsExpansionBoundaryBlocked(BuildSpot buildSpot)
+    {
+        if (towerBuilder == null)
+            towerBuilder = FindObjectOfType<TowerBuilder>();
+
+        if (towerBuilder == null)
+            return false;
+
+        var evaluation = towerBuilder.EvaluateBuildRequest(buildSpot, null, 0);
+        return evaluation.HasMapRuleBlock &&
+            evaluation.MapBlockingTag == MapBlockingTag.ExpansionBoundaryBlocked;
     }
 
     /// <summary>每帧根据鼠标射线更新可建格的悬停高亮；指针在 UI 上时不做世界悬停。</summary>
@@ -166,10 +189,38 @@ public class HexGridManager : MonoBehaviour
                 ?? hit.collider.GetComponentInChildren<HexCell>();
         }
 
-        if (hitCell != null && !hitCell.HasAvailableBuildSpot())
-            hitCell = null;
+        if (hitCell != null)
+        {
+            BuildSpot hoverSpot = hitCell.GetBuildSpot();
+            if (hoverSpot != null && IsExpansionBoundaryBlocked(hoverSpot))
+            {
+                LogBoundaryBlockedHover(hitCell);
+                hitCell = null;
+            }
+            else if (!hitCell.HasAvailableBuildSpot())
+            {
+                hitCell = null;
+            }
+            else
+            {
+                _blockedHoveredCell = null;
+            }
+        }
+        else
+        {
+            _blockedHoveredCell = null;
+        }
 
         SetHoveredCell(hitCell);
+    }
+
+    void LogBoundaryBlockedHover(HexCell cell)
+    {
+        if (_blockedHoveredCell == cell)
+            return;
+
+        _blockedHoveredCell = cell;
+        Debug.Log($"[HexHover] Expansion boundary blocked at {cell.GridX},{cell.GridY}");
     }
 
     void SetHoveredCell(HexCell newHovered)
