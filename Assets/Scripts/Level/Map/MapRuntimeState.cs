@@ -7,6 +7,7 @@ public sealed class MapRuntimeState
 {
     [SerializeField] private bool retainTransitionBridgeSources = true;
     [SerializeField] private bool chapter1SpatialFactConsolidationReady;
+    [SerializeField] private bool hasAuthoredExpansionBoundaryDefinition;
     [SerializeField] private bool hasFormalExpansionBoundarySnapshot;
     [SerializeField] private int temporaryAllowedBuildRingRadius = 8;
     [SerializeField] private bool hasFormalSpecialBuildBlockSnapshot;
@@ -19,16 +20,16 @@ public sealed class MapRuntimeState
 
     public void SetFormalExpansionBoundarySnapshot(bool hasSnapshot, int allowedBuildRingRadius)
     {
+        hasAuthoredExpansionBoundaryDefinition = false;
         hasFormalExpansionBoundarySnapshot = hasSnapshot;
         temporaryAllowedBuildRingRadius = Mathf.Max(0, allowedBuildRingRadius);
     }
 
     public void SetFormalExpansionBoundarySnapshot(MapExpansionBoundaryDefinition definition)
     {
-        SetFormalExpansionBoundarySnapshot(
-            definition.HasFormalExpansionBoundarySnapshot,
-            definition.AllowedBuildRingRadius
-        );
+        hasAuthoredExpansionBoundaryDefinition = true;
+        hasFormalExpansionBoundarySnapshot = definition.HasFormalExpansionBoundarySnapshot;
+        temporaryAllowedBuildRingRadius = definition.AllowedBuildRingRadius;
     }
 
     public void SetFormalSpecialBuildBlockSnapshot(
@@ -87,6 +88,12 @@ public sealed class MapRuntimeState
     {
         if (!hasFormalExpansionBoundarySnapshot)
         {
+            if (hasAuthoredExpansionBoundaryDefinition)
+            {
+                isWithinExpansionBoundary = false;
+                return true;
+            }
+
             isWithinExpansionBoundary = true;
             return false;
         }

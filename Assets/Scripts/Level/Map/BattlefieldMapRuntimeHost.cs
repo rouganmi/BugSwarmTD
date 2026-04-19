@@ -84,7 +84,7 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
 
         // Preferred source hierarchy:
         // 1. MapDefinition-authored expansion-boundary definition
-        // 2. Runtime-host inspector fallback/debug feed
+        // 2. Runtime-host inspector fallback/debug feed, only when no authored definition exists
         // 3. HexGridExpansionBoundaryProvider transition fallback in SpatialRuleService
         if (TryApplyAuthoredExpansionBoundarySnapshot())
             return;
