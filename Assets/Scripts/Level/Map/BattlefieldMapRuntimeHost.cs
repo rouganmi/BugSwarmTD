@@ -22,7 +22,7 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
 
     void Awake()
     {
-        ApplyFormalExpansionBoundarySnapshotFeed();
+        ApplyExpansionBoundaryRuntimeHandoff();
         ApplyFormalSpecialBuildBlockSnapshotFeed();
         ApplyFormalNestBufferSnapshotFeed();
         ApplyPoiRegistryRuntimeBinding();
@@ -31,7 +31,7 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
 #if UNITY_EDITOR
     void OnValidate()
     {
-        ApplyFormalExpansionBoundarySnapshotFeed();
+        ApplyExpansionBoundaryRuntimeHandoff();
         ApplyFormalSpecialBuildBlockSnapshotFeed();
         ApplyFormalNestBufferSnapshotFeed();
         ApplyPoiRegistryRuntimeBinding();
@@ -50,7 +50,7 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
                     new MapRuntimeState();
             }
 
-            ApplyFormalExpansionBoundarySnapshotFeed();
+            ApplyExpansionBoundaryRuntimeHandoff();
             ApplyFormalSpecialBuildBlockSnapshotFeed();
             ApplyFormalNestBufferSnapshotFeed();
             return runtimeState;
@@ -82,22 +82,18 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
         }
     }
 
-    void ApplyFormalExpansionBoundarySnapshotFeed()
+    void ApplyExpansionBoundaryRuntimeHandoff()
     {
         if (runtimeState == null)
             runtimeState = new MapRuntimeState();
 
-        // Preferred source hierarchy:
-        // 1. MapDefinition-authored expansion-boundary definition
-        // 2. Explicitly gated runtime-host inspector fallback/debug feed, only when no authored definition exists
-        // 3. Explicitly gated HexGridExpansionBoundaryProvider transition fallback in SpatialRuleService
-        if (TryApplyAuthoredExpansionBoundarySnapshot())
+        if (TryApplyAuthoredExpansionBoundaryHandoff())
             return;
 
-        ApplyFallbackDebugExpansionBoundarySnapshotFeed();
+        ApplyCompatibilityExpansionBoundaryHandoff();
     }
 
-    bool TryApplyAuthoredExpansionBoundarySnapshot()
+    bool TryApplyAuthoredExpansionBoundaryHandoff()
     {
         if (mapDefinition == null ||
             !mapDefinition.TryGetExpansionBoundaryDefinition(out MapExpansionBoundaryDefinition definition))
@@ -105,23 +101,33 @@ public sealed class BattlefieldMapRuntimeHost : MonoBehaviour
             return false;
         }
 
-        runtimeState.SetFormalExpansionBoundarySnapshot(definition);
+        runtimeState.ApplyAuthoredExpansionBoundaryHandoff(definition);
         return true;
     }
 
-    void ApplyFallbackDebugExpansionBoundarySnapshotFeed()
+    void ApplyCompatibilityExpansionBoundaryHandoff()
     {
-        if (!allowFallbackDebugExpansionBoundaryFeed)
+        if (allowFallbackDebugExpansionBoundaryFeed)
         {
-            runtimeState.SetFormalExpansionBoundarySnapshot(
-                false,
-                fallbackDebugFormalExpansionBoundaryAllowedBuildRingRadius
-            );
+            ApplyFallbackDebugExpansionBoundaryHandoff();
             return;
         }
 
-        runtimeState.SetFormalExpansionBoundarySnapshot(
+        ApplyNoFallbackDebugExpansionBoundaryHandoff();
+    }
+
+    void ApplyFallbackDebugExpansionBoundaryHandoff()
+    {
+        runtimeState.ApplyCompatibilityExpansionBoundaryHandoff(
             fallbackDebugFeedFormalExpansionBoundarySnapshot,
+            fallbackDebugFormalExpansionBoundaryAllowedBuildRingRadius
+        );
+    }
+
+    void ApplyNoFallbackDebugExpansionBoundaryHandoff()
+    {
+        runtimeState.ApplyCompatibilityExpansionBoundaryHandoff(
+            false,
             fallbackDebugFormalExpansionBoundaryAllowedBuildRingRadius
         );
     }

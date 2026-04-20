@@ -5,6 +5,12 @@ using UnityEngine;
 [Serializable]
 public sealed class MapRuntimeState
 {
+    enum ExpansionBoundaryRuntimeHandoffSource
+    {
+        Compatibility,
+        Authored
+    }
+
     [SerializeField] private bool retainTransitionBridgeSources = true;
     [SerializeField] private bool chapter1SpatialFactConsolidationReady;
     [SerializeField] private bool hasAuthoredExpansionBoundaryDefinition;
@@ -20,16 +26,30 @@ public sealed class MapRuntimeState
 
     public void SetFormalExpansionBoundarySnapshot(bool hasSnapshot, int allowedBuildRingRadius)
     {
-        hasAuthoredExpansionBoundaryDefinition = false;
-        hasFormalExpansionBoundarySnapshot = hasSnapshot;
-        temporaryAllowedBuildRingRadius = Mathf.Max(0, allowedBuildRingRadius);
+        ApplyCompatibilityExpansionBoundaryHandoff(hasSnapshot, allowedBuildRingRadius);
     }
 
     public void SetFormalExpansionBoundarySnapshot(MapExpansionBoundaryDefinition definition)
     {
-        hasAuthoredExpansionBoundaryDefinition = true;
-        hasFormalExpansionBoundarySnapshot = definition.HasFormalExpansionBoundarySnapshot;
-        temporaryAllowedBuildRingRadius = definition.AllowedBuildRingRadius;
+        ApplyAuthoredExpansionBoundaryHandoff(definition);
+    }
+
+    public void ApplyAuthoredExpansionBoundaryHandoff(MapExpansionBoundaryDefinition definition)
+    {
+        WriteExpansionBoundaryHandoff(
+            ExpansionBoundaryRuntimeHandoffSource.Authored,
+            definition.HasFormalExpansionBoundarySnapshot,
+            definition.AllowedBuildRingRadius
+        );
+    }
+
+    public void ApplyCompatibilityExpansionBoundaryHandoff(bool hasSnapshot, int allowedBuildRingRadius)
+    {
+        WriteExpansionBoundaryHandoff(
+            ExpansionBoundaryRuntimeHandoffSource.Compatibility,
+            hasSnapshot,
+            allowedBuildRingRadius
+        );
     }
 
     public void SetFormalSpecialBuildBlockSnapshot(
@@ -87,16 +107,7 @@ public sealed class MapRuntimeState
     public bool TryResolveExpansionBoundaryFact(HexCell hexCell, out bool isWithinExpansionBoundary)
     {
         if (!hasFormalExpansionBoundarySnapshot)
-        {
-            if (hasAuthoredExpansionBoundaryDefinition)
-            {
-                isWithinExpansionBoundary = false;
-                return true;
-            }
-
-            isWithinExpansionBoundary = true;
-            return false;
-        }
+            return TryResolveMissingExpansionBoundarySnapshot(out isWithinExpansionBoundary);
 
         if (hexCell == null)
         {
@@ -107,6 +118,36 @@ public sealed class MapRuntimeState
         int ring = CubeRing(hexCell.GridX, hexCell.GridY);
         isWithinExpansionBoundary = ring <= Mathf.Max(0, temporaryAllowedBuildRingRadius);
         return true;
+    }
+
+    void WriteExpansionBoundaryHandoff(
+        ExpansionBoundaryRuntimeHandoffSource source,
+        bool hasSnapshot,
+        int allowedBuildRingRadius)
+    {
+        hasAuthoredExpansionBoundaryDefinition = source == ExpansionBoundaryRuntimeHandoffSource.Authored;
+        hasFormalExpansionBoundarySnapshot = hasSnapshot;
+        temporaryAllowedBuildRingRadius = Mathf.Max(0, allowedBuildRingRadius);
+    }
+
+    bool TryResolveMissingExpansionBoundarySnapshot(out bool isWithinExpansionBoundary)
+    {
+        if (hasAuthoredExpansionBoundaryDefinition)
+            return TryResolveAuthoredExpansionBoundaryWithoutSnapshot(out isWithinExpansionBoundary);
+
+        return TryResolveCompatibilityExpansionBoundaryWithoutSnapshot(out isWithinExpansionBoundary);
+    }
+
+    static bool TryResolveAuthoredExpansionBoundaryWithoutSnapshot(out bool isWithinExpansionBoundary)
+    {
+        isWithinExpansionBoundary = false;
+        return true;
+    }
+
+    static bool TryResolveCompatibilityExpansionBoundaryWithoutSnapshot(out bool isWithinExpansionBoundary)
+    {
+        isWithinExpansionBoundary = true;
+        return false;
     }
 
     public bool TryResolveSpecialBuildBlockFact(HexCell hexCell, out bool isInsideSpecialBuildBlockZone)
